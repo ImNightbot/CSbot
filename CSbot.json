@@ -1,0 +1,3424 @@
+{\rtf1\ansi\deff0\nouicompat{\fonttbl{\f0\fnil\fcharset0 Calibri;}{\f1\fnil\fcharset238 Calibri;}{\f2\fnil\fcharset204 Calibri;}}
+{\colortbl ;\red0\green0\blue255;}
+{\*\generator Riched20 10.0.10586}\viewkind4\uc1 
+\pard\sa200\sl276\slmult1\f0\fs22\lang9 /**\par
+ *Copyright 2014 Yemasthui\par
+ *Modifications (including forks) of the code to fit personal needs are allowed only for personal use and should refer back to the original source.\par
+ *This software is not for profit, any extension, or unauthorised person providing this software is not authorised to be in a position of any monetary gain from this use of this software. Any and all money gained under the use of the software (which includes donations) must be passed on to the original author.\par
+ */\par
+\par
+\par
+(function () \{\par
+\par
+    API.getWaitListPosition = function(id)\{\par
+        if(typeof id === 'undefined' || id === null)\{\par
+            id = API.getUser().id;\par
+        \}\par
+        var wl = API.getWaitList();\par
+        for(var i = 0; i < wl.length; i++)\{\par
+            if(wl[i].id === id)\{\par
+                return i;\par
+            \}\par
+        \}\par
+        return -1;\par
+    \};\par
+\par
+    var kill = function () \{\par
+        clearInterval(basicBot.room.autodisableInterval);\par
+        clearInterval(basicBot.room.afkInterval);\par
+        basicBot.status = false;\par
+    \};\par
+\par
+    var storeToStorage = function () \{\par
+        localStorage.setItem("basicBotsettings", JSON.stringify(basicBot.settings));\par
+        localStorage.setItem("basicBotRoom", JSON.stringify(basicBot.room));\par
+        var basicBotStorageInfo = \{\par
+            time: Date.now(),\par
+            stored: true,\par
+            version: basicBot.version\par
+        \};\par
+        localStorage.setItem("basicBotStorageInfo", JSON.stringify(basicBotStorageInfo));\par
+\par
+    \};\par
+\par
+    var subChat = function (chat, obj) \{\par
+        if (typeof chat === "undefined") \{\par
+            API.chatLog("There is a chat text missing.");\par
+            console.log("There is a chat text missing.");\par
+            return "[Error] No text message found.";\par
+        \}\par
+        var lit = '%%';\par
+        for (var prop in obj) \{\par
+            chat = chat.replace(lit + prop.toUpperCase() + lit, obj[prop]);\par
+        \}\par
+        return chat;\par
+    \};\par
+\par
+    var loadChat = function (cb) \{\par
+        if (!cb) cb = function () \{\par
+        \};\par
+        $.get("https://rawgit.com/Yemasthui/basicBot/master/lang/langIndex.json", function (json) \{\par
+            var link = basicBot.chatLink;\par
+            if (json !== null && typeof json !== "undefined") \{\par
+                langIndex = json;\par
+                link = langIndex[basicBot.settings.language.toLowerCase()];\par
+                if (basicBot.settings.chatLink !== basicBot.chatLink) \{\par
+                    link = basicBot.settings.chatLink;\par
+                \}\par
+                else \{\par
+                    if (typeof link === "undefined") \{\par
+                        link = basicBot.chatLink;\par
+                    \}\par
+                \}\par
+                $.get(link, function (json) \{\par
+                    if (json !== null && typeof json !== "undefined") \{\par
+                        if (typeof json === "string") json = JSON.parse(json);\par
+                        basicBot.chat = json;\par
+                        cb();\par
+                    \}\par
+                \});\par
+            \}\par
+            else \{\par
+                $.get(basicBot.chatLink, function (json) \{\par
+                    if (json !== null && typeof json !== "undefined") \{\par
+                        if (typeof json === "string") json = JSON.parse(json);\par
+                        basicBot.chat = json;\par
+                        cb();\par
+                    \}\par
+                \});\par
+            \}\par
+        \});\par
+    \};\par
+\par
+    var retrieveSettings = function () \{\par
+        var settings = JSON.parse(localStorage.getItem("basicBotsettings"));\par
+        if (settings !== null) \{\par
+            for (var prop in settings) \{\par
+                basicBot.settings[prop] = settings[prop];\par
+            \}\par
+        \}\par
+    \};\par
+\par
+    var retrieveFromStorage = function () \{\par
+        var info = localStorage.getItem("basicBotStorageInfo");\par
+        if (info === null) API.chatLog(basicBot.chat.nodatafound);\par
+        else \{\par
+            var settings = JSON.parse(localStorage.getItem("basicBotsettings"));\par
+            var room = JSON.parse(localStorage.getItem("basicBotRoom"));\par
+            var elapsed = Date.now() - JSON.parse(info).time;\par
+            if ((elapsed < 1 * 60 * 60 * 1000)) \{\par
+                API.chatLog(basicBot.chat.retrievingdata);\par
+                for (var prop in settings) \{\par
+                    basicBot.settings[prop] = settings[prop];\par
+                \}\par
+                basicBot.room.users = room.users;\par
+                basicBot.room.afkList = room.afkList;\par
+                basicBot.room.historyList = room.historyList;\par
+                basicBot.room.mutedUsers = room.mutedUsers;\par
+                basicBot.room.autoskip = room.autoskip;\par
+                basicBot.room.roomstats = room.roomstats;\par
+                basicBot.room.messages = room.messages;\par
+                basicBot.room.queue = room.queue;\par
+                basicBot.room.newBlacklisted = room.newBlacklisted;\par
+                API.chatLog(basicBot.chat.datarestored);\par
+            \}\par
+        \}\par
+        var json_sett = null;\par
+        var roominfo = document.getElementById("room-settings");\par
+        info = roominfo.textContent;\par
+        var ref_bot = "@basicBot=";\par
+        var ind_ref = info.indexOf(ref_bot);\par
+        if (ind_ref > 0) \{\par
+            var link = info.substring(ind_ref + ref_bot.length, info.length);\par
+            var ind_space = null;\par
+            if (link.indexOf(" ") < link.indexOf("\\n")) ind_space = link.indexOf(" ");\par
+            else ind_space = link.indexOf("\\n");\par
+            link = link.substring(0, ind_space);\par
+            $.get(link, function (json) \{\par
+                if (json !== null && typeof json !== "undefined") \{\par
+                    json_sett = JSON.parse(json);\par
+                    for (var prop in json_sett) \{\par
+                        basicBot.settings[prop] = json_sett[prop];\par
+                    \}\par
+                \}\par
+            \});\par
+        \}\par
+\par
+    \};\par
+\par
+    String.prototype.splitBetween = function (a, b) \{\par
+        var self = this;\par
+        self = this.split(a);\par
+        for (var i = 0; i < self.length; i++) \{\par
+            self[i] = self[i].split(b);\par
+        \}\par
+        var arr = [];\par
+        for (var i = 0; i < self.length; i++) \{\par
+            if (Array.isArray(self[i])) \{\par
+                for (var j = 0; j < self[i].length; j++) \{\par
+                    arr.push(self[i][j]);\par
+                \}\par
+            \}\par
+            else arr.push(self[i]);\par
+        \}\par
+        return arr;\par
+    \};\par
+\par
+    var linkFixer = function (msg) \{\par
+        var parts = msg.splitBetween('<a href="', '<\\/a>');\par
+        for (var i = 1; i < parts.length; i = i + 2) \{\par
+            var link = parts[i].split('"')[0];\par
+            parts[i] = link;\par
+        \}\par
+        var m = '';\par
+        for (var i = 0; i < parts.length; i++) \{\par
+            m += parts[i];\par
+        \}\par
+        return m;\par
+    \};\par
+\par
+    var botCreator = "Matthew (Yemasthui)";\par
+    var botMaintainer = "Benzi (Quoona)"\par
+    var botCreatorIDs = ["3851534", "4105209"];\par
+\par
+    var basicBot = \{\par
+        version: "1.1",\par
+        status: false,\par
+        name: "basicBot",\par
+        loggedInID: null,\par
+        scriptLink: "{{\field{\*\fldinst{HYPERLINK https://rawgit.com/Yemasthui/basicBot/master/basicBot.js }}{\fldrslt{https://rawgit.com/Yemasthui/basicBot/master/basicBot.js\ul0\cf0}}}}\f0\fs22 ",\par
+        cmdLink: "{{\field{\*\fldinst{HYPERLINK http://git.io/245Ppg }}{\fldrslt{http://git.io/245Ppg\ul0\cf0}}}}\f0\fs22 ",\par
+        chatLink: "{{\field{\*\fldinst{HYPERLINK https://rawgit.com/Yemasthui/basicBot/master/lang/en.json }}{\fldrslt{https://rawgit.com/Yemasthui/basicBot/master/lang/en.json\ul0\cf0}}}}\f0\fs22 ",\par
+        chat: null,\par
+        loadChat: loadChat,\par
+        retrieveSettings: retrieveSettings,\par
+        retrieveFromStorage: retrieveFromStorage,\par
+        settings: \{\par
+            botName: "CodeSpringerBot",\par
+            language: "english",\par
+            chatLink: "{{\field{\*\fldinst{HYPERLINK https://rawgit.com/Yemasthui/basicBot/master/lang/en.json }}{\fldrslt{https://rawgit.com/Yemasthui/basicBot/master/lang/en.json\ul0\cf0}}}}\f0\fs22 ",\par
+            startupCap: 1, // 1-200\par
+            startupVolume: 0, // 0-100\par
+            startupEmoji: false, // true or false\par
+            cmdDeletion: true,\par
+            maximumAfk: 120,\par
+            afkRemoval: true,\par
+            maximumDc: 60,\par
+            bouncerPlus: true,\par
+            blacklistEnabled: true,\par
+            lockdownEnabled: false,\par
+            lockGuard: false,\par
+            maximumLocktime: 10,\par
+            cycleGuard: true,\par
+            maximumCycletime: 10,\par
+            voteSkip: false,\par
+            voteSkipLimit: 10,\par
+            historySkip: false,\par
+            timeGuard: true,\par
+            maximumSongLength: 10,\par
+            autodisable: true,\par
+            commandCooldown: 30,\par
+            usercommandsEnabled: true,\par
+            lockskipPosition: 3,\par
+            lockskipReasons: [\par
+                ["t", "This song does not fit the room theme. "],\par
+                ["op", "This song is on the OP list. "],\par
+                ["h", "This song is in the history. "],\par
+                ["mx", "You played a mix, which is against the rules. "],\par
+                ["sound", "The song you played had bad sound quality or no sound. "],\par
+                ["nsfw", "The song you contained was NSFW (image or sound). "],\par
+                ["un", "The song you played was not available for some users. "]\par
+            ],\par
+            ball: [\par
+            "Signs point to yes.",\par
+            "Yes.",\par
+            "Reply hazy, try again.",\par
+            "Without a doubt.",\par
+            "My sources say no.",\par
+            "As I see it, yes.",\par
+            "You may rely on it.",\par
+            "Concentrate and ask again.",\par
+            "Outlook not so good.",\par
+            "It is decidedly so.",\par
+            "Better not tell you now.",\par
+            "Very doubtful.",\par
+            "Yes - definitely.",\par
+            "It is certain.",\par
+            "Cannot predict now.",\par
+            "Most likely.",\par
+            "Ask again later.",\par
+            "My reply is no.",\par
+            "Outlook good.",\par
+            "Don't count on it.",\par
+            "Yes, in due time.",\par
+            "My sources say no.",\par
+            "Definitely not.",\par
+            "You will have to wait.",\par
+            "I have my doubts.",\par
+            "Outlook so so.",\par
+            "Looks good to me!",\par
+            "Who knows?",\par
+            "Looking good!",\par
+            "Probably.",\par
+            "Are you kidding?",\par
+            "Don't bet on it.",\par
+            "Forget about it."\par
+            ],\par
+            afkpositionCheck: 15,\par
+            afkRankCheck: "ambassador",\par
+            motdEnabled: false,\par
+            motdInterval: 0,\par
+            motd: "Welcome to CodeSpringerVille",\par
+            filterChat: true,\par
+            etaRestriction: true,\par
+            welcome: true,\par
+            opLink: null,\par
+            rulesLink: null,\par
+            themeLink: null,\par
+            fbLink: null,\par
+            youtubeLink: null,\par
+            website: codespringers.org,\par
+            intervalMessages: [],\par
+            messageInterval: 5,\par
+            songstats: false,\par
+            commandLiteral: "!",\par
+            blacklists: \{\par
+                NSFW: "{{\field{\*\fldinst{HYPERLINK https://rawgit.com/Yemasthui/basicBot-customization/master/blacklists/ExampleNSFWlist.json }}{\fldrslt{https://rawgit.com/Yemasthui/basicBot-customization/master/blacklists/ExampleNSFWlist.json\ul0\cf0}}}}\f0\fs22 ",\par
+                OP: "{{\field{\*\fldinst{HYPERLINK https://rawgit.com/Yemasthui/basicBot-customization/master/blacklists/ExampleOPlist.json }}{\fldrslt{https://rawgit.com/Yemasthui/basicBot-customization/master/blacklists/ExampleOPlist.json\ul0\cf0}}}}\f0\fs22 "\par
+            \}\par
+        \},\par
+        room: \{\par
+            users: [],\par
+            afkList: [],\par
+            mutedUsers: [],\par
+            bannedUsers: [],\par
+            skippable: true,\par
+            usercommand: true,\par
+            allcommand: true,\par
+            afkInterval: null,\par
+            autoskip: false,\par
+            autoskipTimer: null,\par
+            autodisableInterval: null,\par
+            autodisableFunc: function () \{\par
+                if (basicBot.status && basicBot.settings.autodisable) \{\par
+                    API.sendChat('!afkdisable');\par
+                    API.sendChat('!joindisable');\par
+                \}\par
+            \},\par
+            queueing: 0,\par
+            queueable: true,\par
+            currentDJID: null,\par
+            historyList: [],\par
+            cycleTimer: setTimeout(function () \{\par
+            \}, 1),\par
+            roomstats: \{\par
+                accountName: null,\par
+                totalWoots: 0,\par
+                totalCurates: 0,\par
+                totalMehs: 0,\par
+                launchTime: null,\par
+                songCount: 0,\par
+                chatmessages: 0\par
+            \},\par
+            messages: \{\par
+                from: [],\par
+                to: [],\par
+                message: []\par
+            \},\par
+            queue: \{\par
+                id: [],\par
+                position: []\par
+            \},\par
+            blacklists: \{\par
+\par
+            \},\par
+            newBlacklisted: [],\par
+            newBlacklistedSongFunction: null,\par
+            roulette: \{\par
+                rouletteStatus: false,\par
+                participants: [],\par
+                countdown: null,\par
+                startRoulette: function () \{\par
+                    basicBot.room.roulette.rouletteStatus = true;\par
+                    basicBot.room.roulette.countdown = setTimeout(function () \{\par
+                        basicBot.room.roulette.endRoulette();\par
+                    \}, 60 * 1000);\par
+                    API.sendChat(basicBot.chat.isopen);\par
+                \},\par
+                endRoulette: function () \{\par
+                    basicBot.room.roulette.rouletteStatus = false;\par
+                    var ind = Math.floor(Math.random() * basicBot.room.roulette.participants.length);\par
+                    var winner = basicBot.room.roulette.participants[ind];\par
+                    basicBot.room.roulette.participants = [];\par
+                    var pos = Math.floor((Math.random() * API.getWaitList().length) + 1);\par
+                    var user = basicBot.userUtilities.lookupUser(winner);\par
+                    var name = user.username;\par
+                    API.sendChat(subChat(basicBot.chat.winnerpicked, \{name: name, position: pos\}));\par
+                    setTimeout(function (winner, pos) \{\par
+                        basicBot.userUtilities.moveUser(winner, pos, false);\par
+                    \}, 1 * 1000, winner, pos);\par
+                \}\par
+            \}\par
+        \},\par
+        User: function (id, name) \{\par
+            this.id = id;\par
+            this.username = name;\par
+            this.jointime = Date.now();\par
+            this.lastActivity = Date.now();\par
+            this.votes = \{\par
+                woot: 0,\par
+                meh: 0,\par
+                curate: 0\par
+            \};\par
+            this.lastEta = null;\par
+            this.afkWarningCount = 0;\par
+            this.afkCountdown = null;\par
+            this.inRoom = true;\par
+            this.isMuted = false;\par
+            this.lastDC = \{\par
+                time: null,\par
+                position: null,\par
+                songCount: 0\par
+            \};\par
+            this.lastKnownPosition = null;\par
+        \},\par
+        userUtilities: \{\par
+            getJointime: function (user) \{\par
+                return user.jointime;\par
+            \},\par
+            getUser: function (user) \{\par
+                return API.getUser(user.id);\par
+            \},\par
+            updatePosition: function (user, newPos) \{\par
+                user.lastKnownPosition = newPos;\par
+            \},\par
+            updateDC: function (user) \{\par
+                user.lastDC.time = Date.now();\par
+                user.lastDC.position = user.lastKnownPosition;\par
+                user.lastDC.songCount = basicBot.room.roomstats.songCount;\par
+            \},\par
+            setLastActivity: function (user) \{\par
+                user.lastActivity = Date.now();\par
+                user.afkWarningCount = 0;\par
+                clearTimeout(user.afkCountdown);\par
+            \},\par
+            getLastActivity: function (user) \{\par
+                return user.lastActivity;\par
+            \},\par
+            getWarningCount: function (user) \{\par
+                return user.afkWarningCount;\par
+            \},\par
+            setWarningCount: function (user, value) \{\par
+                user.afkWarningCount = value;\par
+            \},\par
+            lookupUser: function (id) \{\par
+                for (var i = 0; i < basicBot.room.users.length; i++) \{\par
+                    if (basicBot.room.users[i].id === id) \{\par
+                        return basicBot.room.users[i];\par
+                    \}\par
+                \}\par
+                return false;\par
+            \},\par
+            lookupUserName: function (name) \{\par
+                for (var i = 0; i < basicBot.room.users.length; i++) \{\par
+                    var match = basicBot.room.users[i].username.trim() == name.trim();\par
+                    if (match) \{\par
+                        return basicBot.room.users[i];\par
+                    \}\par
+                \}\par
+                return false;\par
+            \},\par
+            voteRatio: function (id) \{\par
+                var user = basicBot.userUtilities.lookupUser(id);\par
+                var votes = user.votes;\par
+                if (votes.meh === 0) votes.ratio = 1;\par
+                else votes.ratio = (votes.woot / votes.meh).toFixed(2);\par
+                return votes;\par
+\par
+            \},\par
+            getPermission: function (obj) \{ //1 requests\par
+                var u;\par
+                if (typeof obj === "object") u = obj;\par
+                else u = API.getUser(obj);\par
+                for (var i = 0; i < botCreatorIDs.length; i++) \{\par
+                    if (botCreatorIDs[i].indexOf(u.id) > -1) return 10;\par
+                \}\par
+                if (u.gRole < 2) return u.role;\par
+                else \{\par
+                    switch (u.gRole) \{\par
+                        case 2:\par
+                            return 7;\par
+                        case 3:\par
+                            return 8;\par
+                        case 4:\par
+                            return 9;\par
+                        case 5:\par
+                            return 10;\par
+                    \}\par
+                \}\par
+                return 0;\par
+            \},\par
+            moveUser: function (id, pos, priority) \{\par
+                var user = basicBot.userUtilities.lookupUser(id);\par
+                var wlist = API.getWaitList();\par
+                if (API.getWaitListPosition(id) === -1) \{\par
+                    if (wlist.length < 50) \{\par
+                        API.moderateAddDJ(id);\par
+                        if (pos !== 0) setTimeout(function (id, pos) \{\par
+                            API.moderateMoveDJ(id, pos);\par
+                        \}, 1250, id, pos);\par
+                    \}\par
+                    else \{\par
+                        var alreadyQueued = -1;\par
+                        for (var i = 0; i < basicBot.room.queue.id.length; i++) \{\par
+                            if (basicBot.room.queue.id[i] === id) alreadyQueued = i;\par
+                        \}\par
+                        if (alreadyQueued !== -1) \{\par
+                            basicBot.room.queue.position[alreadyQueued] = pos;\par
+                            return API.sendChat(subChat(basicBot.chat.alreadyadding, \{position: basicBot.room.queue.position[alreadyQueued]\}));\par
+                        \}\par
+                        basicBot.roomUtilities.booth.lockBooth();\par
+                        if (priority) \{\par
+                            basicBot.room.queue.id.unshift(id);\par
+                            basicBot.room.queue.position.unshift(pos);\par
+                        \}\par
+                        else \{\par
+                            basicBot.room.queue.id.push(id);\par
+                            basicBot.room.queue.position.push(pos);\par
+                        \}\par
+                        var name = user.username;\par
+                        return API.sendChat(subChat(basicBot.chat.adding, \{name: name, position: basicBot.room.queue.position.length\}));\par
+                    \}\par
+                \}\par
+                else API.moderateMoveDJ(id, pos);\par
+            \},\par
+            dclookup: function (id) \{\par
+                var user = basicBot.userUtilities.lookupUser(id);\par
+                if (typeof user === 'boolean') return basicBot.chat.usernotfound;\par
+                var name = user.username;\par
+                if (user.lastDC.time === null) return subChat(basicBot.chat.notdisconnected, \{name: name\});\par
+                var dc = user.lastDC.time;\par
+                var pos = user.lastDC.position;\par
+                if (pos === null) return basicBot.chat.noposition;\par
+                var timeDc = Date.now() - dc;\par
+                var validDC = false;\par
+                if (basicBot.settings.maximumDc * 60 * 1000 > timeDc) \{\par
+                    validDC = true;\par
+                \}\par
+                var time = basicBot.roomUtilities.msToStr(timeDc);\par
+                if (!validDC) return (subChat(basicBot.chat.toolongago, \{name: basicBot.userUtilities.getUser(user).username, time: time\}));\par
+                var songsPassed = basicBot.room.roomstats.songCount - user.lastDC.songCount;\par
+                var afksRemoved = 0;\par
+                var afkList = basicBot.room.afkList;\par
+                for (var i = 0; i < afkList.length; i++) \{\par
+                    var timeAfk = afkList[i][1];\par
+                    var posAfk = afkList[i][2];\par
+                    if (dc < timeAfk && posAfk < pos) \{\par
+                        afksRemoved++;\par
+                    \}\par
+                \}\par
+                var newPosition = user.lastDC.position - songsPassed - afksRemoved;\par
+                if (newPosition <= 0) newPosition = 1;\par
+                var msg = subChat(basicBot.chat.valid, \{name: basicBot.userUtilities.getUser(user).username, time: time, position: newPosition\});\par
+                basicBot.userUtilities.moveUser(user.id, newPosition, true);\par
+                return msg;\par
+            \}\par
+        \},\par
+\par
+        roomUtilities: \{\par
+            rankToNumber: function (rankString) \{\par
+                var rankInt = null;\par
+                switch (rankString) \{\par
+                    case "admin":\par
+                        rankInt = 10;\par
+                        break;\par
+                    case "ambassador":\par
+                        rankInt = 7;\par
+                        break;\par
+                    case "host":\par
+                        rankInt = 5;\par
+                        break;\par
+                    case "cohost":\par
+                        rankInt = 4;\par
+                        break;\par
+                    case "manager":\par
+                        rankInt = 3;\par
+                        break;\par
+                    case "bouncer":\par
+                        rankInt = 2;\par
+                        break;\par
+                    case "residentdj":\par
+                        rankInt = 1;\par
+                        break;\par
+                    case "user":\par
+                        rankInt = 0;\par
+                        break;\par
+                \}\par
+                return rankInt;\par
+            \},\par
+            msToStr: function (msTime) \{\par
+                var ms, msg, timeAway;\par
+                msg = '';\par
+                timeAway = \{\par
+                    'days': 0,\par
+                    'hours': 0,\par
+                    'minutes': 0,\par
+                    'seconds': 0\par
+                \};\par
+                ms = \{\par
+                    'day': 24 * 60 * 60 * 1000,\par
+                    'hour': 60 * 60 * 1000,\par
+                    'minute': 60 * 1000,\par
+                    'second': 1000\par
+                \};\par
+                if (msTime > ms.day) \{\par
+                    timeAway.days = Math.floor(msTime / ms.day);\par
+                    msTime = msTime % ms.day;\par
+                \}\par
+                if (msTime > ms.hour) \{\par
+                    timeAway.hours = Math.floor(msTime / ms.hour);\par
+                    msTime = msTime % ms.hour;\par
+                \}\par
+                if (msTime > ms.minute) \{\par
+                    timeAway.minutes = Math.floor(msTime / ms.minute);\par
+                    msTime = msTime % ms.minute;\par
+                \}\par
+                if (msTime > ms.second) \{\par
+                    timeAway.seconds = Math.floor(msTime / ms.second);\par
+                \}\par
+                if (timeAway.days !== 0) \{\par
+                    msg += timeAway.days.toString() + 'd';\par
+                \}\par
+                if (timeAway.hours !== 0) \{\par
+                    msg += timeAway.hours.toString() + 'h';\par
+                \}\par
+                if (timeAway.minutes !== 0) \{\par
+                    msg += timeAway.minutes.toString() + 'm';\par
+                \}\par
+                if (timeAway.minutes < 1 && timeAway.hours < 1 && timeAway.days < 1) \{\par
+                    msg += timeAway.seconds.toString() + 's';\par
+                \}\par
+                if (msg !== '') \{\par
+                    return msg;\par
+                \} else \{\par
+                    return false;\par
+                \}\par
+            \},\par
+            booth: \{\par
+                lockTimer: setTimeout(function () \{\par
+                \}, 1000),\par
+                locked: false,\par
+                lockBooth: function () \{\par
+                    API.moderateLockWaitList(!basicBot.roomUtilities.booth.locked);\par
+                    basicBot.roomUtilities.booth.locked = false;\par
+                    if (basicBot.settings.lockGuard) \{\par
+                        basicBot.roomUtilities.booth.lockTimer = setTimeout(function () \{\par
+                            API.moderateLockWaitList(basicBot.roomUtilities.booth.locked);\par
+                        \}, basicBot.settings.maximumLocktime * 60 * 1000);\par
+                    \}\par
+                \},\par
+                unlockBooth: function () \{\par
+                    API.moderateLockWaitList(basicBot.roomUtilities.booth.locked);\par
+                    clearTimeout(basicBot.roomUtilities.booth.lockTimer);\par
+                \}\par
+            \},\par
+            afkCheck: function () \{\par
+                if (!basicBot.status || !basicBot.settings.afkRemoval) return void (0);\par
+                var rank = basicBot.roomUtilities.rankToNumber(basicBot.settings.afkRankCheck);\par
+                var djlist = API.getWaitList();\par
+                var lastPos = Math.min(djlist.length, basicBot.settings.afkpositionCheck);\par
+                if (lastPos - 1 > djlist.length) return void (0);\par
+                for (var i = 0; i < lastPos; i++) \{\par
+                    if (typeof djlist[i] !== 'undefined') \{\par
+                        var id = djlist[i].id;\par
+                        var user = basicBot.userUtilities.lookupUser(id);\par
+                        if (typeof user !== 'boolean') \{\par
+                            var plugUser = basicBot.userUtilities.getUser(user);\par
+                            if (rank !== null && basicBot.userUtilities.getPermission(plugUser) <= rank) \{\par
+                                var name = plugUser.username;\par
+                                var lastActive = basicBot.userUtilities.getLastActivity(user);\par
+                                var inactivity = Date.now() - lastActive;\par
+                                var time = basicBot.roomUtilities.msToStr(inactivity);\par
+                                var warncount = user.afkWarningCount;\par
+                                if (inactivity > basicBot.settings.maximumAfk * 60 * 1000) \{\par
+                                    if (warncount === 0) \{\par
+                                        API.sendChat(subChat(basicBot.chat.warning1, \{name: name, time: time\}));\par
+                                        user.afkWarningCount = 3;\par
+                                        user.afkCountdown = setTimeout(function (userToChange) \{\par
+                                            userToChange.afkWarningCount = 1;\par
+                                        \}, 90 * 1000, user);\par
+                                    \}\par
+                                    else if (warncount === 1) \{\par
+                                        API.sendChat(subChat(basicBot.chat.warning2, \{name: name\}));\par
+                                        user.afkWarningCount = 3;\par
+                                        user.afkCountdown = setTimeout(function (userToChange) \{\par
+                                            userToChange.afkWarningCount = 2;\par
+                                        \}, 30 * 1000, user);\par
+                                    \}\par
+                                    else if (warncount === 2) \{\par
+                                        var pos = API.getWaitListPosition(id);\par
+                                        if (pos !== -1) \{\par
+                                            pos++;\par
+                                            basicBot.room.afkList.push([id, Date.now(), pos]);\par
+                                            user.lastDC = \{\par
+\par
+                                                time: null,\par
+                                                position: null,\par
+                                                songCount: 0\par
+                                            \};\par
+                                            API.moderateRemoveDJ(id);\par
+                                            API.sendChat(subChat(basicBot.chat.afkremove, \{name: name, time: time, position: pos, maximumafk: basicBot.settings.maximumAfk\}));\par
+                                        \}\par
+                                        user.afkWarningCount = 0;\par
+                                    \}\par
+                                \}\par
+                            \}\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+            changeDJCycle: function () \{\par
+                var toggle = $(".cycle-toggle");\par
+                if (toggle.hasClass("disabled")) \{\par
+                    toggle.click();\par
+                    if (basicBot.settings.cycleGuard) \{\par
+                        basicBot.room.cycleTimer = setTimeout(function () \{\par
+                            if (toggle.hasClass("enabled")) toggle.click();\par
+                        \}, basicBot.settings.cycleMaxTime * 60 * 1000);\par
+                    \}\par
+                \}\par
+                else \{\par
+                    toggle.click();\par
+                    clearTimeout(basicBot.room.cycleTimer);\par
+                \}\par
+            \},\par
+            intervalMessage: function () \{\par
+                var interval;\par
+                if (basicBot.settings.motdEnabled) interval = basicBot.settings.motdInterval;\par
+                else interval = basicBot.settings.messageInterval;\par
+                if ((basicBot.room.roomstats.songCount % interval) === 0 && basicBot.status) \{\par
+                    var msg;\par
+                    if (basicBot.settings.motdEnabled) \{\par
+                        msg = basicBot.settings.motd;\par
+                    \}\par
+                    else \{\par
+                        if (basicBot.settings.intervalMessages.length === 0) return void (0);\par
+                        var messageNumber = basicBot.room.roomstats.songCount % basicBot.settings.intervalMessages.length;\par
+                        msg = basicBot.settings.intervalMessages[messageNumber];\par
+                    \}\par
+                    API.sendChat('/me ' + msg);\par
+                \}\par
+            \},\par
+            updateBlacklists: function () \{\par
+                for (var bl in basicBot.settings.blacklists) \{\par
+                    basicBot.room.blacklists[bl] = [];\par
+                    if (typeof basicBot.settings.blacklists[bl] === 'function') \{\par
+                        basicBot.room.blacklists[bl] = basicBot.settings.blacklists();\par
+                    \}\par
+                    else if (typeof basicBot.settings.blacklists[bl] === 'string') \{\par
+                        if (basicBot.settings.blacklists[bl] === '') \{\par
+                            continue;\par
+                        \}\par
+                        try \{\par
+                            (function (l) \{\par
+                                $.get(basicBot.settings.blacklists[l], function (data) \{\par
+                                    if (typeof data === 'string') \{\par
+                                        data = JSON.parse(data);\par
+                                    \}\par
+                                    var list = [];\par
+                                    for (var prop in data) \{\par
+                                        if (typeof data[prop].mid !== 'undefined') \{\par
+                                            list.push(data[prop].mid);\par
+                                        \}\par
+                                    \}\par
+                                    basicBot.room.blacklists[l] = list;\par
+                                \})\par
+                            \})(bl);\par
+                        \}\par
+                        catch (e) \{\par
+                            API.chatLog('Error setting' + bl + 'blacklist.');\par
+                            console.log('Error setting' + bl + 'blacklist.');\par
+                            console.log(e);\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+            logNewBlacklistedSongs: function () \{\par
+                if (typeof console.table !== 'undefined') \{\par
+                    console.table(basicBot.room.newBlacklisted);\par
+                \}\par
+                else \{\par
+                    console.log(basicBot.room.newBlacklisted);\par
+                \}\par
+            \},\par
+            exportNewBlacklistedSongs: function () \{\par
+                var list = \{\};\par
+                for (var i = 0; i < basicBot.room.newBlacklisted.length; i++) \{\par
+                    var track = basicBot.room.newBlacklisted[i];\par
+                    list[track.list] = [];\par
+                    list[track.list].push(\{\par
+                        title: track.title,\par
+                        author: track.author,\par
+                        mid: track.mid\par
+                    \});\par
+                \}\par
+                return list;\par
+            \}\par
+        \},\par
+        eventChat: function (chat) \{\par
+            chat.message = linkFixer(chat.message);\par
+            chat.message = chat.message.trim();\par
+            for (var i = 0; i < basicBot.room.users.length; i++) \{\par
+                if (basicBot.room.users[i].id === chat.uid) \{\par
+                    basicBot.userUtilities.setLastActivity(basicBot.room.users[i]);\par
+                    if (basicBot.room.users[i].username !== chat.un) \{\par
+                        basicBot.room.users[i].username = chat.un;\par
+                    \}\par
+                \}\par
+            \}\par
+            if (basicBot.chatUtilities.chatFilter(chat)) return void (0);\par
+            if (!basicBot.chatUtilities.commandCheck(chat))\par
+                basicBot.chatUtilities.action(chat);\par
+        \},\par
+        eventUserjoin: function (user) \{\par
+            var known = false;\par
+            var index = null;\par
+            for (var i = 0; i < basicBot.room.users.length; i++) \{\par
+                if (basicBot.room.users[i].id === user.id) \{\par
+                    known = true;\par
+                    index = i;\par
+                \}\par
+            \}\par
+            var greet = true;\par
+            var welcomeback = null;\par
+            if (known) \{\par
+                basicBot.room.users[index].inRoom = true;\par
+                var u = basicBot.userUtilities.lookupUser(user.id);\par
+                var jt = u.jointime;\par
+                var t = Date.now() - jt;\par
+                if (t < 10 * 1000) greet = false;\par
+                else welcomeback = true;\par
+            \}\par
+            else \{\par
+                basicBot.room.users.push(new basicBot.User(user.id, user.username));\par
+                welcomeback = false;\par
+            \}\par
+            for (var j = 0; j < basicBot.room.users.length; j++) \{\par
+                if (basicBot.userUtilities.getUser(basicBot.room.users[j]).id === user.id) \{\par
+                    basicBot.userUtilities.setLastActivity(basicBot.room.users[j]);\par
+                    basicBot.room.users[j].jointime = Date.now();\par
+                \}\par
+\par
+            \}\par
+            if (basicBot.settings.welcome && greet) \{\par
+                welcomeback ?\par
+                    setTimeout(function (user) \{\par
+                        API.sendChat(subChat(basicBot.chat.welcomeback, \{name: user.username\}));\par
+                    \}, 1 * 1000, user)\par
+                    :\par
+                    setTimeout(function (user) \{\par
+                        API.sendChat(subChat(basicBot.chat.welcome, \{name: user.username\}));\par
+                    \}, 1 * 1000, user);\par
+            \}\par
+        \},\par
+        eventUserleave: function (user) \{\par
+            for (var i = 0; i < basicBot.room.users.length; i++) \{\par
+                if (basicBot.room.users[i].id === user.id) \{\par
+                    basicBot.userUtilities.updateDC(basicBot.room.users[i]);\par
+                    basicBot.room.users[i].inRoom = false;\par
+                \}\par
+            \}\par
+        \},\par
+        eventVoteupdate: function (obj) \{\par
+            for (var i = 0; i < basicBot.room.users.length; i++) \{\par
+                if (basicBot.room.users[i].id === obj.user.id) \{\par
+                    if (obj.vote === 1) \{\par
+                        basicBot.room.users[i].votes.woot++;\par
+                    \}\par
+                    else \{\par
+                        basicBot.room.users[i].votes.meh++;\par
+                    \}\par
+                \}\par
+            \}\par
+\par
+            var mehs = API.getScore().negative;\par
+            var woots = API.getScore().positive;\par
+            var dj = API.getDJ();\par
+\par
+            if (basicBot.settings.voteSkip) \{\par
+                if ((mehs - woots) >= (basicBot.settings.voteSkipLimit)) \{\par
+                    API.sendChat(subChat(basicBot.chat.voteskipexceededlimit, \{name: dj.username, limit: basicBot.settings.voteSkipLimit\}));\par
+                    API.moderateForceSkip();\par
+                \}\par
+            \}\par
+\par
+        \},\par
+        eventCurateupdate: function (obj) \{\par
+            for (var i = 0; i < basicBot.room.users.length; i++) \{\par
+                if (basicBot.room.users[i].id === obj.user.id) \{\par
+                    basicBot.room.users[i].votes.curate++;\par
+                \}\par
+            \}\par
+        \},\par
+        eventDjadvance: function (obj) \{\par
+            $("#woot").click(); // autowoot\par
+\par
+            var user = basicBot.userUtilities.lookupUser(obj.dj.id)\par
+            for(var i = 0; i < basicBot.room.users.length; i++)\{\par
+                if(basicBot.room.users[i].id === user.id)\{\par
+                    basicBot.room.users[i].lastDC = \{\par
+                        time: null,\par
+                        position: null,\par
+                        songCount: 0\par
+                    \};\par
+                \}\par
+            \}\par
+\par
+            var lastplay = obj.lastPlay;\par
+            if (typeof lastplay === 'undefined') return;\par
+            if (basicBot.settings.songstats) \{\par
+                if (typeof basicBot.chat.songstatistics === "undefined") \{\par
+                    API.sendChat("/me " + lastplay.media.author + " - " + lastplay.media.title + ": " + lastplay.score.positive + "W/" + lastplay.score.grabs + "G/" + lastplay.score.negative + "M.")\par
+                \}\par
+                else \{\par
+                    API.sendChat(subChat(basicBot.chat.songstatistics, \{artist: lastplay.media.author, title: lastplay.media.title, woots: lastplay.score.positive, grabs: lastplay.score.grabs, mehs: lastplay.score.negative\}))\par
+                \}\par
+            \}\par
+            basicBot.room.roomstats.totalWoots += lastplay.score.positive;\par
+            basicBot.room.roomstats.totalMehs += lastplay.score.negative;\par
+            basicBot.room.roomstats.totalCurates += lastplay.score.grabs;\par
+            basicBot.room.roomstats.songCount++;\par
+            basicBot.roomUtilities.intervalMessage();\par
+            basicBot.room.currentDJID = obj.dj.id;\par
+\par
+            var mid = obj.media.format + ':' + obj.media.cid;\par
+            for (var bl in basicBot.room.blacklists) \{\par
+                if (basicBot.settings.blacklistEnabled) \{\par
+                    if (basicBot.room.blacklists[bl].indexOf(mid) > -1) \{\par
+                        API.sendChat(subChat(basicBot.chat.isblacklisted, \{blacklist: bl\}));\par
+                        return API.moderateForceSkip();\par
+                    \}\par
+                \}\par
+            \}\par
+\par
+            /*var alreadyPlayed = false;\par
+            for (var i = 0; i < basicBot.room.historyList.length; i++) \{\par
+                if (basicBot.room.historyList[i][0] === obj.media.cid) \{\par
+                    var firstPlayed = basicBot.room.historyList[i][1];\par
+                    var plays = basicBot.room.historyList[i].length - 1;\par
+                    var lastPlayed = basicBot.room.historyList[i][plays];\par
+                    API.sendChat(subChat(basicBot.chat.songknown, \{plays: plays, timetotal: basicBot.roomUtilities.msToStr(Date.now() - firstPlayed), lasttime: basicBot.roomUtilities.msToStr(Date.now() - lastPlayed)\}));\par
+                    basicBot.room.historyList[i].push(+new Date());\par
+                    alreadyPlayed = true;\par
+                \}\par
+            \}\par
+            if (!alreadyPlayed) \{\par
+                basicBot.room.historyList.push([obj.media.cid, +new Date()]);\par
+            \}*/\par
+\par
+            if (basicBot.settings.historySkip) \{\par
+                var alreadyPlayed = false;\par
+                var apihistory = API.getHistory();\par
+                var name = obj.dj.username;\par
+                for (var i = 0; i < apihistory.length; i++) \{\par
+                    if (apihistory[i].media.cid === obj.media.cid) \{\par
+                        API.sendChat(subChat(basicBot.chat.songknown, \{name: name\}));\par
+                        API.moderateForceSkip();\par
+                        basicBot.room.historyList[i].push(+new Date());\par
+                        alreadyPlayed = true;\par
+                    \}\par
+                \}\par
+                if (!alreadyPlayed) \{\par
+                    basicBot.room.historyList.push([obj.media.cid, +new Date()]);\par
+                \}\par
+            \}\par
+            var newMedia = obj.media;\par
+            if (basicBot.settings.timeGuard && newMedia.duration > basicBot.settings.maximumSongLength * 60 && !basicBot.room.roomevent) \{\par
+                var name = obj.dj.username;\par
+                API.sendChat(subChat(basicBot.chat.timelimit, \{name: name, maxlength: basicBot.settings.maximumSongLength\}));\par
+                API.moderateForceSkip();\par
+            \}\par
+            if (user.ownSong) \{\par
+                API.sendChat(subChat(basicBot.chat.permissionownsong, \{name: user.username\}));\par
+                user.ownSong = false;\par
+            \}\par
+            clearTimeout(basicBot.room.autoskipTimer);\par
+            if (basicBot.room.autoskip) \{\par
+                var remaining = obj.media.duration * 1000;\par
+                basicBot.room.autoskipTimer = setTimeout(function () \{\par
+                    console.log("Skipping track.");\par
+                    //API.sendChat('Song stuck, skipping...');\par
+                    API.moderateForceSkip();\par
+                \}, remaining + 3000);\par
+            \}\par
+            storeToStorage();\par
+\par
+        \},\par
+        eventWaitlistupdate: function (users) \{\par
+            if (users.length < 50) \{\par
+                if (basicBot.room.queue.id.length > 0 && basicBot.room.queueable) \{\par
+                    basicBot.room.queueable = false;\par
+                    setTimeout(function () \{\par
+                        basicBot.room.queueable = true;\par
+                    \}, 500);\par
+                    basicBot.room.queueing++;\par
+                    var id, pos;\par
+                    setTimeout(\par
+                        function () \{\par
+                            id = basicBot.room.queue.id.splice(0, 1)[0];\par
+                            pos = basicBot.room.queue.position.splice(0, 1)[0];\par
+                            API.moderateAddDJ(id, pos);\par
+                            setTimeout(\par
+                                function (id, pos) \{\par
+                                    API.moderateMoveDJ(id, pos);\par
+                                    basicBot.room.queueing--;\par
+                                    if (basicBot.room.queue.id.length === 0) setTimeout(function () \{\par
+                                        basicBot.roomUtilities.booth.unlockBooth();\par
+                                    \}, 1000);\par
+                                \}, 1000, id, pos);\par
+                        \}, 1000 + basicBot.room.queueing * 2500);\par
+                \}\par
+            \}\par
+            for (var i = 0; i < users.length; i++) \{\par
+                var user = basicBot.userUtilities.lookupUser(users[i].id);\par
+                basicBot.userUtilities.updatePosition(user, API.getWaitListPosition(users[i].id) + 1);\par
+            \}\par
+        \},\par
+        chatcleaner: function (chat) \{\par
+            if (!basicBot.settings.filterChat) return false;\par
+            if (basicBot.userUtilities.getPermission(chat.uid) > 1) return false;\par
+            var msg = chat.message;\par
+            var containsLetters = false;\par
+            for (var i = 0; i < msg.length; i++) \{\par
+                ch = msg.charAt(i);\par
+                if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch === ':' || ch === '^') containsLetters = true;\par
+            \}\par
+            if (msg === '') \{\par
+                return true;\par
+            \}\par
+            if (!containsLetters && (msg.length === 1 || msg.length > 3)) return true;\par
+            msg = msg.replace(/[ ,;.:\\/=~+%^*\\-\\\\"'&@#]/g, '');\par
+            var capitals = 0;\par
+            var ch;\par
+            for (var i = 0; i < msg.length; i++) \{\par
+                ch = msg.charAt(i);\par
+                if (ch >= 'A' && ch <= 'Z') capitals++;\par
+            \}\par
+            if (capitals >= 40) \{\par
+                API.sendChat(subChat(basicBot.chat.caps, \{name: chat.un\}));\par
+                return true;\par
+            \}\par
+            msg = msg.toLowerCase();\par
+            if (msg === 'skip') \{\par
+                API.sendChat(subChat(basicBot.chat.askskip, \{name: chat.un\}));\par
+                return true;\par
+            \}\par
+            for (var j = 0; j < basicBot.chatUtilities.spam.length; j++) \{\par
+                if (msg === basicBot.chatUtilities.spam[j]) \{\par
+                    API.sendChat(subChat(basicBot.chat.spam, \{name: chat.un\}));\par
+                    return true;\par
+                \}\par
+            \}\par
+            return false;\par
+        \},\par
+        chatUtilities: \{\par
+            chatFilter: function (chat) \{\par
+                var msg = chat.message;\par
+                var perm = basicBot.userUtilities.getPermission(chat.uid);\par
+                var user = basicBot.userUtilities.lookupUser(chat.uid);\par
+                var isMuted = false;\par
+                for (var i = 0; i < basicBot.room.mutedUsers.length; i++) \{\par
+                    if (basicBot.room.mutedUsers[i] === chat.uid) isMuted = true;\par
+                \}\par
+                if (isMuted) \{\par
+                    API.moderateDeleteChat(chat.cid);\par
+                    return true;\par
+                \}\par
+                if (basicBot.settings.lockdownEnabled) \{\par
+                    if (perm === 0) \{\par
+                        API.moderateDeleteChat(chat.cid);\par
+                        return true;\par
+                    \}\par
+                \}\par
+                if (basicBot.chatcleaner(chat)) \{\par
+                    API.moderateDeleteChat(chat.cid);\par
+                    return true;\par
+                \}\par
+                /**\par
+                 var plugRoomLinkPatt = /(\\bhttps?:\\/\\/(www.)?plug\\.dj[-A-Z0-9+&@#\\/%?=~_|!:,.;]*[-A-Z0-9+&@#\\/%=~_|])/ig;\par
+                 if (plugRoomLinkPatt.exec(msg)) \{\par
+                    if (perm === 0) \{\par
+                        API.sendChat(subChat(basicBot.chat.roomadvertising, \{name: chat.un\}));\par
+                        API.moderateDeleteChat(chat.cid);\par
+                        return true;\par
+                    \}\par
+                \}\par
+                 **/\par
+                if (msg.indexOf('http://adf.ly/') > -1) \{\par
+                    API.moderateDeleteChat(chat.cid);\par
+                    API.sendChat(subChat(basicBot.chat.adfly, \{name: chat.un\}));\par
+                    return true;\par
+                \}\par
+                if (msg.indexOf('autojoin was not enabled') > 0 || msg.indexOf('AFK message was not enabled') > 0 || msg.indexOf('!afkdisable') > 0 || msg.indexOf('!joindisable') > 0 || msg.indexOf('autojoin disabled') > 0 || msg.indexOf('AFK message disabled') > 0) \{\par
+                    API.moderateDeleteChat(chat.cid);\par
+                    return true;\par
+                \}\par
+\par
+                var rlJoinChat = basicBot.chat.roulettejoin;\par
+                var rlLeaveChat = basicBot.chat.rouletteleave;\par
+\par
+                var joinedroulette = rlJoinChat.split('%%NAME%%');\par
+                if (joinedroulette[1].length > joinedroulette[0].length) joinedroulette = joinedroulette[1];\par
+                else joinedroulette = joinedroulette[0];\par
+\par
+                var leftroulette = rlLeaveChat.split('%%NAME%%');\par
+                if (leftroulette[1].length > leftroulette[0].length) leftroulette = leftroulette[1];\par
+                else leftroulette = leftroulette[0];\par
+\par
+                if ((msg.indexOf(joinedroulette) > -1 || msg.indexOf(leftroulette) > -1) && chat.uid === basicBot.loggedInID) \{\par
+                    setTimeout(function (id) \{\par
+                        API.moderateDeleteChat(id);\par
+                    \}, 2 * 1000, chat.cid);\par
+                    return true;\par
+                \}\par
+                return false;\par
+            \},\par
+            commandCheck: function (chat) \{\par
+                var cmd;\par
+                if (chat.message.charAt(0) === '!') \{\par
+                    var space = chat.message.indexOf(' ');\par
+                    if (space === -1) \{\par
+                        cmd = chat.message;\par
+                    \}\par
+                    else cmd = chat.message.substring(0, space);\par
+                \}\par
+                else return false;\par
+                var userPerm = basicBot.userUtilities.getPermission(chat.uid);\par
+                //console.log("name: " + chat.un + ", perm: " + userPerm);\par
+                if (chat.message !== "!join" && chat.message !== "!leave") \{\par
+                    if (userPerm === 0 && !basicBot.room.usercommand) return void (0);\par
+                    if (!basicBot.room.allcommand) return void (0);\par
+                \}\par
+                if (chat.message === '!eta' && basicBot.settings.etaRestriction) \{\par
+                    if (userPerm < 2) \{\par
+                        var u = basicBot.userUtilities.lookupUser(chat.uid);\par
+                        if (u.lastEta !== null && (Date.now() - u.lastEta) < 1 * 60 * 60 * 1000) \{\par
+                            API.moderateDeleteChat(chat.cid);\par
+                            return void (0);\par
+                        \}\par
+                        else u.lastEta = Date.now();\par
+                    \}\par
+                \}\par
+                var executed = false;\par
+\par
+                for (var comm in basicBot.commands) \{\par
+                    var cmdCall = basicBot.commands[comm].command;\par
+                    if (!Array.isArray(cmdCall)) \{\par
+                        cmdCall = [cmdCall]\par
+                    \}\par
+                    for (var i = 0; i < cmdCall.length; i++) \{\par
+                        if (basicBot.settings.commandLiteral + cmdCall[i] === cmd) \{\par
+                            basicBot.commands[comm].functionality(chat, basicBot.settings.commandLiteral + cmdCall[i]);\par
+                            executed = true;\par
+                            break;\par
+                        \}\par
+                    \}\par
+                \}\par
+\par
+                if (executed && userPerm === 0) \{\par
+                    basicBot.room.usercommand = false;\par
+                    setTimeout(function () \{\par
+                        basicBot.room.usercommand = true;\par
+                    \}, basicBot.settings.commandCooldown * 1000);\par
+                \}\par
+                if (executed) \{\par
+                    if (basicBot.settings.cmdDeletion) \{\par
+                        API.moderateDeleteChat(chat.cid);\par
+                    \}\par
+                    basicBot.room.allcommand = false;\par
+                    setTimeout(function () \{\par
+                        basicBot.room.allcommand = true;\par
+                    \}, 5 * 1000);\par
+                \}\par
+                return executed;\par
+            \},\par
+            action: function (chat) \{\par
+                var user = basicBot.userUtilities.lookupUser(chat.uid);\par
+                if (chat.type === 'message') \{\par
+                    for (var j = 0; j < basicBot.room.users.length; j++) \{\par
+                        if (basicBot.userUtilities.getUser(basicBot.room.users[j]).id === chat.uid) \{\par
+                            basicBot.userUtilities.setLastActivity(basicBot.room.users[j]);\par
+                        \}\par
+\par
+                    \}\par
+                \}\par
+                basicBot.room.roomstats.chatmessages++;\par
+            \},\par
+            spam: [\par
+                'hueh', 'hu3', 'brbr', 'heu', 'brbr', 'kkkk', 'spoder', 'mafia', 'zuera', 'zueira',\par
+                'zueria', 'aehoo', 'aheu', 'alguem', 'algum', 'brazil', 'zoeira', 'fuckadmins', 'affff', 'vaisefoder', 'huenaarea',\par
+                'hitler', 'ashua', 'ahsu', 'ashau', 'lulz', 'huehue', 'hue', 'huehuehue', 'merda', 'pqp', 'puta', 'mulher', 'pula', 'retarda', 'caralho', 'filha', 'ppk',\par
+                'gringo', 'fuder', 'foder', 'hua', 'ahue', 'modafuka', 'modafoka', 'mudafuka', 'mudafoka', 'ooooooooooooooo', 'foda','asd','wasdasd','brgbasd','huehuehuehue','kkkkkkk','k','lol','ttt','wewewe','pplolo',\par
+            ],\par
+            curses: [\par
+                'nigger', 'faggot', 'nigga', 'niqqa', 'motherfucker', 'modafocka','fuck','shit','fuck you','focka','cunt','kick ass',\par
+            ]\par
+        \},\par
+        connectAPI: function () \{\par
+            this.proxy = \{\par
+                eventChat: $.proxy(this.eventChat, this),\par
+                eventUserskip: $.proxy(this.eventUserskip, this),\par
+                eventUserjoin: $.proxy(this.eventUserjoin, this),\par
+                eventUserleave: $.proxy(this.eventUserleave, this),\par
+                //eventUserfan: $.proxy(this.eventUserfan, this),\par
+                //eventFriendjoin: $.proxy(this.eventFriendjoin, this),\par
+                //eventFanjoin: $.proxy(this.eventFanjoin, this),\par
+                eventVoteupdate: $.proxy(this.eventVoteupdate, this),\par
+                eventCurateupdate: $.proxy(this.eventCurateupdate, this),\par
+                eventRoomscoreupdate: $.proxy(this.eventRoomscoreupdate, this),\par
+                eventDjadvance: $.proxy(this.eventDjadvance, this),\par
+                //eventDjupdate: $.proxy(this.eventDjupdate, this),\par
+                eventWaitlistupdate: $.proxy(this.eventWaitlistupdate, this),\par
+                eventVoteskip: $.proxy(this.eventVoteskip, this),\par
+                eventModskip: $.proxy(this.eventModskip, this),\par
+                eventChatcommand: $.proxy(this.eventChatcommand, this),\par
+                eventHistoryupdate: $.proxy(this.eventHistoryupdate, this),\par
+\par
+            \};\par
+            API.on(API.CHAT, this.proxy.eventChat);\par
+            API.on(API.USER_SKIP, this.proxy.eventUserskip);\par
+            API.on(API.USER_JOIN, this.proxy.eventUserjoin);\par
+            API.on(API.USER_LEAVE, this.proxy.eventUserleave);\par
+            //API.on(API.USER_FAN, this.proxy.eventUserfan);\par
+            API.on(API.VOTE_UPDATE, this.proxy.eventVoteupdate);\par
+            API.on(API.GRAB_UPDATE, this.proxy.eventCurateupdate);\par
+            API.on(API.ROOM_SCORE_UPDATE, this.proxy.eventRoomscoreupdate);\par
+            API.on(API.ADVANCE, this.proxy.eventDjadvance);\par
+            API.on(API.WAIT_LIST_UPDATE, this.proxy.eventWaitlistupdate);\par
+            API.on(API.MOD_SKIP, this.proxy.eventModskip);\par
+            API.on(API.CHAT_COMMAND, this.proxy.eventChatcommand);\par
+            API.on(API.HISTORY_UPDATE, this.proxy.eventHistoryupdate);\par
+        \},\par
+        disconnectAPI: function () \{\par
+            API.off(API.CHAT, this.proxy.eventChat);\par
+            API.off(API.USER_SKIP, this.proxy.eventUserskip);\par
+            API.off(API.USER_JOIN, this.proxy.eventUserjoin);\par
+            API.off(API.USER_LEAVE, this.proxy.eventUserleave);\par
+            //API.off(API.USER_FAN, this.proxy.eventUserfan);\par
+            API.off(API.VOTE_UPDATE, this.proxy.eventVoteupdate);\par
+            API.off(API.CURATE_UPDATE, this.proxy.eventCurateupdate);\par
+            API.off(API.ROOM_SCORE_UPDATE, this.proxy.eventRoomscoreupdate);\par
+            API.off(API.ADVANCE, this.proxy.eventDjadvance);\par
+            API.off(API.WAIT_LIST_UPDATE, this.proxy.eventWaitlistupdate);\par
+            API.off(API.MOD_SKIP, this.proxy.eventModskip);\par
+            API.off(API.CHAT_COMMAND, this.proxy.eventChatcommand);\par
+            API.off(API.HISTORY_UPDATE, this.proxy.eventHistoryupdate);\par
+        \},\par
+        startup: function () \{\par
+            Function.prototype.toString = function () \{\par
+                return 'Function.'\par
+            \};\par
+            var u = API.getUser();\par
+            if (basicBot.userUtilities.getPermission(u) < 2) return API.chatLog(basicBot.chat.greyuser);\par
+            if (basicBot.userUtilities.getPermission(u) === 2) API.chatLog(basicBot.chat.bouncer);\par
+            basicBot.connectAPI();\par
+            API.moderateDeleteChat = function (cid) \{\par
+                $.ajax(\{\par
+                    url: "{{\field{\*\fldinst{HYPERLINK https://plug.dj/_/chat/ }}{\fldrslt{https://plug.dj/_/chat/\ul0\cf0}}}}\f0\fs22 " + cid,\par
+                    type: "DELETE"\par
+                \})\par
+            \};\par
+\par
+            var roomURL = window.location.pathname;\par
+            var Check;\par
+\par
+            var detect = function()\{\par
+                if(roomURL != window.location.pathname)\{\par
+                    clearInterval(Check)\par
+                    console.log("Killing bot after room change.");\par
+                    storeToStorage();\par
+                    basicBot.disconnectAPI();\par
+                    setTimeout(function () \{\par
+                        kill();\par
+                    \}, 1000);\par
+                \}\par
+            \};\par
+\par
+            Check = setInterval(function()\{ detect() \}, 100);\par
+\par
+            retrieveSettings();\par
+            retrieveFromStorage();\par
+            window.bot = basicBot;\par
+            basicBot.roomUtilities.updateBlacklists();\par
+            setInterval(basicBot.roomUtilities.updateBlacklists, 60 * 60 * 1000);\par
+            basicBot.getNewBlacklistedSongs = basicBot.roomUtilities.exportNewBlacklistedSongs;\par
+            basicBot.logNewBlacklistedSongs = basicBot.roomUtilities.logNewBlacklistedSongs;\par
+            if (basicBot.room.roomstats.launchTime === null) \{\par
+                basicBot.room.roomstats.launchTime = Date.now();\par
+            \}\par
+\par
+            for (var j = 0; j < basicBot.room.users.length; j++) \{\par
+                basicBot.room.users[j].inRoom = false;\par
+            \}\par
+            var userlist = API.getUsers();\par
+            for (var i = 0; i < userlist.length; i++) \{\par
+                var known = false;\par
+                var ind = null;\par
+                for (var j = 0; j < basicBot.room.users.length; j++) \{\par
+                    if (basicBot.room.users[j].id === userlist[i].id) \{\par
+                        known = true;\par
+                        ind = j;\par
+                    \}\par
+                \}\par
+                if (known) \{\par
+                    basicBot.room.users[ind].inRoom = true;\par
+                \}\par
+                else \{\par
+                    basicBot.room.users.push(new basicBot.User(userlist[i].id, userlist[i].username));\par
+                    ind = basicBot.room.users.length - 1;\par
+                \}\par
+                var wlIndex = API.getWaitListPosition(basicBot.room.users[ind].id) + 1;\par
+                basicBot.userUtilities.updatePosition(basicBot.room.users[ind], wlIndex);\par
+            \}\par
+            basicBot.room.afkInterval = setInterval(function () \{\par
+                basicBot.roomUtilities.afkCheck()\par
+            \}, 10 * 1000);\par
+            basicBot.room.autodisableInterval = setInterval(function () \{\par
+                basicBot.room.autodisableFunc();\par
+            \}, 60 * 60 * 1000);\par
+            basicBot.loggedInID = API.getUser().id;\par
+            basicBot.status = true;\par
+            API.sendChat('/cap ' + basicBot.settings.startupCap);\par
+            API.setVolume(basicBot.settings.startupVolume);\par
+            $("#woot").click();\par
+            if (basicBot.settings.startupEmoji) \{\par
+                var emojibuttonoff = $(".icon-emoji-off");\par
+                if (emojibuttonoff.length > 0) \{\par
+                    emojibuttonoff[0].click();\par
+                \}\par
+                API.chatLog(':smile: Emojis enabled.');\par
+            \}\par
+            else \{\par
+                var emojibuttonon = $(".icon-emoji-on");\par
+                if (emojibuttonon.length > 0) \{\par
+                    emojibuttonon[0].click();\par
+                \}\par
+                API.chatLog('Emojis disabled.');\par
+            \}\par
+            API.chatLog('Avatars capped at ' + basicBot.settings.startupCap);\par
+            API.chatLog('Volume set to ' + basicBot.settings.startupVolume);\par
+            loadChat(API.sendChat(subChat(basicBot.chat.online, \{botname: basicBot.settings.botName, version: basicBot.version\})));\par
+        \},\par
+        commands: \{\par
+            executable: function (minRank, chat) \{\par
+                var id = chat.uid;\par
+                var perm = basicBot.userUtilities.getPermission(id);\par
+                var minPerm;\par
+                switch (minRank) \{\par
+                    case 'admin':\par
+                        minPerm = 10;\par
+                        break;\par
+                    case 'ambassador':\par
+                        minPerm = 7;\par
+                        break;\par
+                    case 'host':\par
+                        minPerm = 5;\par
+                        break;\par
+                    case 'cohost':\par
+                        minPerm = 4;\par
+                        break;\par
+                    case 'manager':\par
+                        minPerm = 3;\par
+                        break;\par
+                    case 'mod':\par
+                        if (basicBot.settings.bouncerPlus) \{\par
+                            minPerm = 2;\par
+                        \}\par
+                        else \{\par
+                            minPerm = 3;\par
+                        \}\par
+                        break;\par
+                    case 'bouncer':\par
+                        minPerm = 2;\par
+                        break;\par
+                    case 'residentdj':\par
+                        minPerm = 1;\par
+                        break;\par
+                    case 'user':\par
+                        minPerm = 0;\par
+                        break;\par
+                    default:\par
+                        API.chatLog('error assigning minimum permission');\par
+                \}\par
+                return perm >= minPerm;\par
+\par
+            \},\par
+            /**\par
+             command: \{\par
+                        command: 'cmd',\par
+                        rank: 'user/bouncer/mod/manager',\par
+                        type: 'startsWith/exact',\par
+                        functionality: function(chat, cmd)\{\par
+                                if(this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                                if( !basicBot.commands.executable(this.rank, chat) ) return void (0);\par
+                                else\{\par
+                                \par
+                                \}\par
+                        \}\par
+                \},\par
+             **/\par
+\par
+            activeCommand: \{\par
+                command: 'active',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        var now = Date.now();\par
+                        var chatters = 0;\par
+                        var time;\par
+                        if (msg.length === cmd.length) time = 60;\par
+                        else \{\par
+                            time = msg.substring(cmd.length + 1);\par
+                            if (isNaN(time)) return API.sendChat(subChat(basicBot.chat.invalidtime, \{name: chat.un\}));\par
+                        \}\par
+                        for (var i = 0; i < basicBot.room.users.length; i++) \{\par
+                            userTime = basicBot.userUtilities.getLastActivity(basicBot.room.users[i]);\par
+                            if ((now - userTime) <= (time * 60 * 1000)) \{\par
+                                chatters++;\par
+                            \}\par
+                        \}\par
+                        API.sendChat(subChat(basicBot.chat.activeusersintime, \{name: chat.un, amount: chatters, time: time\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            addCommand: \{\par
+                command: 'add',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length === cmd.length) return API.sendChat(subChat(basicBot.chat.nouserspecified, \{name: chat.un\}));\par
+                        var name = msg.substr(cmd.length + 2);\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        if (msg.length > cmd.length + 2) \{\par
+                            if (typeof user !== 'undefined') \{\par
+                                if (basicBot.room.roomevent) \{\par
+                                    basicBot.room.eventArtists.push(user.id);\par
+                                \}\par
+                                API.moderateAddDJ(user.id);\par
+                            \} else API.sendChat(subChat(basicBot.chat.invaliduserspecified, \{name: chat.un\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            afklimitCommand: \{\par
+                command: 'afklimit',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length === cmd.length) return API.sendChat(subChat(basicBot.chat.nolimitspecified, \{name: chat.un\}));\par
+                        var limit = msg.substring(cmd.length + 1);\par
+                        if (!isNaN(limit)) \{\par
+                            basicBot.settings.maximumAfk = parseInt(limit, 10);\par
+                            API.sendChat(subChat(basicBot.chat.maximumafktimeset, \{name: chat.un, time: basicBot.settings.maximumAfk\}));\par
+                        \}\par
+                        else API.sendChat(subChat(basicBot.chat.invalidlimitspecified, \{name: chat.un\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            afkremovalCommand: \{\par
+                command: 'afkremoval',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.afkRemoval) \{\par
+                            basicBot.settings.afkRemoval = !basicBot.settings.afkRemoval;\par
+                            clearInterval(basicBot.room.afkInterval);\par
+                            API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.afkremoval\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.afkRemoval = !basicBot.settings.afkRemoval;\par
+                            basicBot.room.afkInterval = setInterval(function () \{\par
+                                basicBot.roomUtilities.afkCheck()\par
+                            \}, 2 * 1000);\par
+                            API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.afkremoval\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            afkresetCommand: \{\par
+                command: 'afkreset',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length === cmd.length) return API.sendChat(subChat(basicBot.chat.nouserspecified, \{name: chat.un\}));\par
+                        var name = msg.substring(cmd.length + 2);\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        if (typeof user === 'boolean') return API.sendChat(subChat(basicBot.chat.invaliduserspecified, \{name: chat.un\}));\par
+                        basicBot.userUtilities.setLastActivity(user);\par
+                        API.sendChat(subChat(basicBot.chat.afkstatusreset, \{name: chat.un, username: name\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            afktimeCommand: \{\par
+                command: 'afktime',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length === cmd.length) return API.sendChat(subChat(basicBot.chat.nouserspecified, \{name: chat.un\}));\par
+                        var name = msg.substring(cmd.length + 2);\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        if (typeof user === 'boolean') return API.sendChat(subChat(basicBot.chat.invaliduserspecified, \{name: chat.un\}));\par
+                        var lastActive = basicBot.userUtilities.getLastActivity(user);\par
+                        var inactivity = Date.now() - lastActive;\par
+                        var time = basicBot.roomUtilities.msToStr(inactivity);\par
+\par
+                        var launchT = basicBot.room.roomstats.launchTime;\par
+                        var durationOnline = Date.now() - launchT;\par
+\par
+                        if (inactivity == durationOnline)\{\par
+                            API.sendChat(subChat(basicBot.chat.inactivelonger, \{botname: basicBot.settings.botName, name: chat.un, username: name\}));\par
+                        \} else \{\par
+                        API.sendChat(subChat(basicBot.chat.inactivefor, \{name: chat.un, username: name, time: time\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            autodisableCommand: \{\par
+                command: 'autodisable',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.autodisable) \{\par
+                            basicBot.settings.autodisable = !basicBot.settings.autodisable;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.autodisable\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.autodisable = !basicBot.settings.autodisable;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.autodisable\}));\par
+                        \}\par
+\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            autoskipCommand: \{\par
+                command: 'autoskip',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.room.autoskip) \{\par
+                            basicBot.room.autoskip = !basicBot.room.autoskip;\par
+                            clearTimeout(basicBot.room.autoskipTimer);\par
+                            return API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.autoskip\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.room.autoskip = !basicBot.room.autoskip;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.autoskip\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            autowootCommand: \{\par
+                command: 'autowoot',\par
+                rank: 'user',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        API.sendChat(basicBot.chat.autowoot);\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            baCommand: \{\par
+                command: 'ba',\par
+                rank: 'user',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        API.sendChat(basicBot.chat.brandambassador);\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            ballCommand: \{\par
+                command: ['8ball', 'ask'],\par
+                rank: 'user',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                            var crowd = API.getUsers();\par
+                            var msg = chat.message;\par
+                            var argument = msg.substring(cmd.length + 1);\par
+                            var randomUser = Math.floor(Math.random() * crowd.length);\par
+                            var randomBall = Math.floor(Math.random() * basicBot.settings.ball.length);\par
+                            var randomSentence = Math.floor(Math.random() * 1);\par
+                            API.sendChat(subChat(basicBot.chat.ball, \{name: chat.un, botname: basicBot.settings.botName, question: argument, response: basicBot.settings.ball[randomBall]\}));\par
+                     \}\par
+                \}\par
+            \},\par
+\par
+            banCommand: \{\par
+                command: 'ban',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length === cmd.length) return API.sendChat(subChat(basicBot.chat.nouserspecified, \{name: chat.un\}));\par
+                        var name = msg.substr(cmd.length + 2);\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        if (typeof user === 'boolean') return API.sendChat(subChat(basicBot.chat.invaliduserspecified, \{name: chat.un\}));\par
+                        API.moderateBanUser(user.id, 1, API.BAN.DAY);\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            blacklistCommand: \{\par
+                command: ['blacklist', 'bl'],\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length === cmd.length) return API.sendChat(subChat(basicBot.chat.nolistspecified, \{name: chat.un\}));\par
+                        var list = msg.substr(cmd.length + 1);\par
+                        if (typeof basicBot.room.blacklists[list] === 'undefined') return API.sendChat(subChat(basicBot.chat.invalidlistspecified, \{name: chat.un\}));\par
+                        else \{\par
+                            var media = API.getMedia();\par
+                            var track = \{\par
+                                list: list,\par
+                                author: media.author,\par
+                                title: media.title,\par
+                                mid: media.format + ':' + media.cid\par
+                            \};\par
+                            basicBot.room.newBlacklisted.push(track);\par
+                            basicBot.room.blacklists[list].push(media.format + ':' + media.cid);\par
+                            API.sendChat(subChat(basicBot.chat.newblacklisted, \{name: chat.un, blacklist: list, author: media.author, title: media.title, mid: media.format + ':' + media.cid\}));\par
+                            API.moderateForceSkip();\par
+                            if (typeof basicBot.room.newBlacklistedSongFunction === 'function') \{\par
+                                basicBot.room.newBlacklistedSongFunction(track);\par
+                            \}\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            blinfoCommand: \{\par
+                command: 'blinfo',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var author = API.getMedia().author;\par
+                        var title = API.getMedia().title;\par
+                        var name = chat.un;\par
+                        var format = API.getMedia().format;\par
+                        var cid = API.getMedia().cid;\par
+                        var songid = format + ":" + cid;\par
+\par
+                        API.sendChat(subChat(basicBot.chat.blinfo, \{name: name, author: author, title: title, songid: songid\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            bouncerPlusCommand: \{\par
+                command: 'bouncer+',\par
+                rank: 'host',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (basicBot.settings.bouncerPlus) \{\par
+                            basicBot.settings.bouncerPlus = false;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': 'Bouncer+'\}));\par
+                        \}\par
+                        else \{\par
+                            if (!basicBot.settings.bouncerPlus) \{\par
+                                var id = chat.uid;\par
+                                var perm = basicBot.userUtilities.getPermission(id);\par
+                                if (perm > 2) \{\par
+                                    basicBot.settings.bouncerPlus = true;\par
+                                    return API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': 'Bouncer+'\}));\par
+                                \}\par
+                            \}\par
+                            else return API.sendChat(subChat(basicBot.chat.bouncerplusrank, \{name: chat.un\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            clearchatCommand: \{\par
+                command: 'clearchat',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var currentchat = $('#chat-messages').children();\par
+                        for (var i = 0; i < currentchat.length; i++) \{\par
+                            API.moderateDeleteChat(currentchat[i].getAttribute("data-cid"));\par
+                        \}\par
+                        return API.sendChat(subChat(basicBot.chat.chatcleared, \{name: chat.un\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            commandsCommand: \{\par
+                command: 'commands',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        API.sendChat(subChat(basicBot.chat.commandslink, \{botname: basicBot.settings.botName, link: basicBot.cmdLink\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            cmddeletionCommand: \{\par
+                command: ['commanddeletion', 'cmddeletion', 'cmddel'],\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.cmdDeletion) \{\par
+                            basicBot.settings.cmdDeletion = !basicBot.settings.cmdDeletion;\par
+                            API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.cmddeletion\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.cmdDeletion = !basicBot.settings.cmdDeletion;\par
+                            API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.cmddeletion\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            cookieCommand: \{\par
+                command: 'cookie',\par
+                rank: 'user',\par
+                type: 'startsWith',\par
+                cookies: ['has given you a chocolate chip cookie!',\par
+                    'has given you a soft homemade oatmeal cookie!',\par
+                    'has given you a plain, dry, old cookie. It was the last one in the bag. Gross.',\par
+                    'gives you a sugar cookie. What, no frosting and sprinkles? 0/10 would not touch.',\par
+                    'gives you a chocolate chip cookie. Oh wait, those are raisins. Bleck!',\par
+                    'gives you an enormous cookie. Poking it gives you more cookies. Weird.',\par
+                    'gives you a fortune cookie. It reads "Why aren\\'t you working on any projects?"',\par
+                    'gives you a fortune cookie. It reads "Give that special someone a compliment"',\par
+                    'gives you a fortune cookie. It reads "Take a risk!"',\par
+                    'gives you a fortune cookie. It reads "Go outside."',\par
+                    'gives you a fortune cookie. It reads "Don\\'t forget to eat your veggies!"',\par
+                    'gives you a fortune cookie. It reads "Do you even lift?"',\par
+                    'gives you a fortune cookie. It reads "m808 pls"',\par
+                    'gives you a fortune cookie. It reads "If you move your hips, you\\'ll get all the ladies."',\par
+                    'gives you a fortune cookie. It reads "I love you."',\par
+                    'gives you a Golden Cookie. You can\\'t eat it because it is made of gold. Dammit.',\par
+                    'gives you an Oreo cookie with a glass of milk!',\par
+                    'gives you a rainbow cookie made with love :heart:',\par
+                    'gives you an old cookie that was left out in the rain, it\\'s moldy.',\par
+                    'bakes you fresh cookies, it smells amazing.'\par
+                ],\par
+                getCookie: function () \{\par
+                    var c = Math.floor(Math.random() * this.cookies.length);\par
+                    return this.cookies[c];\par
+                \},\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+\par
+                        var space = msg.indexOf(' ');\par
+                        if (space === -1) \{\par
+                            API.sendChat(basicBot.chat.eatcookie);\par
+                            return false;\par
+                        \}\par
+                        else \{\par
+                            var name = msg.substring(space + 2);\par
+                            var user = basicBot.userUtilities.lookupUserName(name);\par
+                            if (user === false || !user.inRoom) \{\par
+                                return API.sendChat(subChat(basicBot.chat.nousercookie, \{name: name\}));\par
+                            \}\par
+                            else if (user.username === chat.un) \{\par
+                                return API.sendChat(subChat(basicBot.chat.selfcookie, \{name: name\}));\par
+                            \}\par
+                            else \{\par
+                                return API.sendChat(subChat(basicBot.chat.cookie, \{nameto: user.username, namefrom: chat.un, cookie: this.getCookie()\}));\par
+                            \}\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            cycleCommand: \{\par
+                command: 'cycle',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        basicBot.roomUtilities.changeDJCycle();\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            cycleguardCommand: \{\par
+                command: 'cycleguard',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.cycleGuard) \{\par
+                            basicBot.settings.cycleGuard = !basicBot.settings.cycleGuard;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.cycleguard\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.cycleGuard = !basicBot.settings.cycleGuard;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.cycleguard\}));\par
+                        \}\par
+\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            cycletimerCommand: \{\par
+                command: 'cycletimer',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        var cycleTime = msg.substring(cmd.length + 1);\par
+                        if (!isNaN(cycleTime) && cycleTime !== "") \{\par
+                            basicBot.settings.maximumCycletime = cycleTime;\par
+                            return API.sendChat(subChat(basicBot.chat.cycleguardtime, \{name: chat.un, time: basicBot.settings.maximumCycletime\}));\par
+                        \}\par
+                        else return API.sendChat(subChat(basicBot.chat.invalidtime, \{name: chat.un\}));\par
+\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            dclookupCommand: \{\par
+                command: ['dclookup', 'dc'],\par
+                rank: 'user',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        var name;\par
+                        if (msg.length === cmd.length) name = chat.un;\par
+                        else \{\par
+                            name = msg.substring(cmd.length + 2);\par
+                            var perm = basicBot.userUtilities.getPermission(chat.uid);\par
+                            if (perm < 2) return API.sendChat(subChat(basicBot.chat.dclookuprank, \{name: chat.un\}));\par
+                        \}\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        if (typeof user === 'boolean') return API.sendChat(subChat(basicBot.chat.invaliduserspecified, \{name: chat.un\}));\par
+                        var toChat = basicBot.userUtilities.dclookup(user.id);\par
+                        API.sendChat(toChat);\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            /*deletechatCommand: \{\par
+                command: 'deletechat',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length === cmd.length) return API.sendChat(subChat(basicBot.chat.nouserspecified, \{name: chat.un\}));\par
+                        var name = msg.substring(cmd.length + 2);\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        if (typeof user === 'boolean') return API.sendChat(subChat(basicBot.chat.invaliduserspecified, \{name: chat.un\}));\par
+                        var chats = $('.from');\par
+                        var message = $('.message');\par
+                        var emote = $('.emote');\par
+                        var from = $('.un.clickable');\par
+                        for (var i = 0; i < chats.length; i++) \{\par
+                            var n = from[i].textContent;\par
+                            if (name.trim() === n.trim()) \{\par
+\par
+                                // var messagecid = $(message)[i].getAttribute('data-cid');\par
+                                // var emotecid = $(emote)[i].getAttribute('data-cid');\par
+                                // API.moderateDeleteChat(messagecid);\par
+\par
+                                // try \{\par
+                                //     API.moderateDeleteChat(messagecid);\par
+                                // \}\par
+                                // finally \{\par
+                                //     API.moderateDeleteChat(emotecid);\par
+                                // \}\par
+\par
+                                if (typeof $(message)[i].getAttribute('data-cid') == "undefined")\{\par
+                                    API.moderateDeleteChat($(emote)[i].getAttribute('data-cid')); // works well with normal messages but not with emotes due to emotes and messages are seperate.\par
+                                \} else \{\par
+                                    API.moderateDeleteChat($(message)[i].getAttribute('data-cid'));\par
+                                \}\par
+                            \}\par
+                        \}\par
+                        API.sendChat(subChat(basicBot.chat.deletechat, \{name: chat.un, username: name\}));\par
+                    \}\par
+                \}\par
+            \},*/\par
+\par
+            emojiCommand: \{\par
+                command: 'emoji',\par
+                rank: 'user',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var link = '{{\field{\*\fldinst{HYPERLINK http://www.emoji-cheat-sheet.com/ }}{\fldrslt{http://www.emoji-cheat-sheet.com/\ul0\cf0}}}}\f0\fs22 ';\par
+                        API.sendChat(subChat(basicBot.chat.emojilist, \{link: link\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            englishCommand: \{\par
+                command: 'english',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if(chat.message.length === cmd.length) return API.sendChat('/me No user specified.');\par
+                        var name = chat.message.substring(cmd.length + 2);\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        if(typeof user === 'boolean') return API.sendChat('/me Invalid user specified.');\par
+                        var lang = basicBot.userUtilities.getUser(user).language;\par
+                        var ch = '/me @' + name + ' ';\par
+                        switch(lang)\{\par
+                            case 'en': break;\par
+                            case 'da': ch += 'V\'e6r venlig at tale engelsk.'; break;\par
+                            case 'de': ch += 'Bitte sprechen Sie Englisch.'; break;\par
+                            case 'es': ch += 'Por favor, hable Ingl\'e9s.'; break;\par
+                            case 'fr': ch += 'Parlez anglais, s\\'il vous pla\'eet.'; break;\par
+                            case 'nl': ch += 'Spreek Engels, alstublieft.'; break;\par
+                            case 'pl': ch += 'Prosz\f1\'ea m\f0\'f3wi\f1\'e6 po angielsku.'; break;\par
+                            case 'pt': ch += 'Por favor, fale Ingl\f0\'eas.'; break;\par
+                            case 'sk': ch += 'Hovorte po anglicky, pros\'edm.'; break;\par
+                            case 'cs': ch += 'Mluvte pros\'edm anglicky.'; break;\par
+                            case 'sr': ch += '\f2\lang1049\'cc\'ee\'eb\'e8\'ec \'c2\'e0\'f1, \'e3\'ee\'e2\'ee\'f0\'e8\'f2\'e5 \'e5\'ed\'e3\'eb\'e5\'f1\'ea\'e8.'; break;                                  \par
+                        \}\par
+                        ch += ' English please.';\par
+                        API.sendChat(ch);\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            etaCommand: \{\par
+                command: 'eta',\par
+                rank: 'user',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var perm = basicBot.userUtilities.getPermission(chat.uid);\par
+                        var msg = chat.message;\par
+                        var name;\par
+                        if (msg.length > cmd.length) \{\par
+                            if (perm < 2) return void (0);\par
+                            name = msg.substring(cmd.length + 2);\par
+                        \} else name = chat.un;\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        if (typeof user === 'boolean') return API.sendChat(subChat(basicBot.chat.invaliduserspecified, \{name: chat.un\}));\par
+                        var pos = API.getWaitListPosition(user.id);\par
+                        if (pos < 0) return API.sendChat(subChat(basicBot.chat.notinwaitlist, \{name: name\}));\par
+                        var timeRemaining = API.getTimeRemaining();\par
+                        var estimateMS = ((pos + 1) * 4 * 60 + timeRemaining) * 1000;\par
+                        var estimateString = basicBot.roomUtilities.msToStr(estimateMS);\par
+                        API.sendChat(subChat(basicBot.chat.eta, \{name: name, time: estimateString\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            fbCommand: \{\par
+                command: 'fb',\par
+                rank: 'host',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (typeof basicBot.settings.fbLink === "string")\par
+                            API.sendChat(subChat(basicBot.chat.facebook, \{link: basicBot.settings.fbLink\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            filterCommand: \{\par
+                command: 'filter',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.filterChat) \{\par
+                            basicBot.settings.filterChat = !basicBot.settings.filterChat;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.chatfilter\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.filterChat = !basicBot.settings.filterChat;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.chatfilter\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            ghostbusterCommand: \{\par
+                command: 'ghostbuster',\par
+                rank: 'user',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        var name;\par
+                        if (msg.length === cmd.length) name = chat.un;\par
+                        else \{\par
+                            name = msg.substr(cmd.length + 2);\par
+                        \}\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        if (user === false || !user.inRoom) \{\par
+                            return API.sendChat(subChat(basicBot.chat.ghosting, \{name1: chat.un, name2: name\}));\par
+                        \}\par
+                        else API.sendChat(subChat(basicBot.chat.notghosting, \{name1: chat.un, name2: name\}));     \par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            gifCommand: \{\par
+                command: ['gif', 'giphy'],\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length !== cmd.length) \{\par
+                            function get_id(api_key, fixedtag, func)\par
+                            \{\par
+                                $.getJSON(\par
+                                    "{{\field{\*\fldinst{HYPERLINK https://api.giphy.com/v1/gifs/random? }}{\fldrslt{https://api.giphy.com/v1/gifs/random?\ul0\cf0}}}}\f2\fs22 ", \par
+                                    \{ \par
+                                        "format": "json",\par
+                                        "api_key": api_key,\par
+                                        "rating": rating,\par
+                                        "tag": fixedtag\par
+                                    \},\par
+                                    function(response)\par
+                                    \{\par
+                                        func(response.data.id);\par
+                                    \}\par
+                                    )\par
+                            \}\par
+                            var api_key = "dc6zaTOxFJmzC"; // public beta key\par
+                            var rating = "pg-13"; // PG 13 gifs\par
+                            var tag = msg.substr(cmd.length + 1);\par
+                            var fixedtag = tag.replace(/ /g,"+");\par
+                            var commatag = tag.replace(/ /g,", ");\par
+                            get_id(api_key, tag, function(id) \{\par
+                                if (typeof id !== 'undefined') \{\par
+                                    API.sendChat(subChat(basicBot.chat.validgiftags, \{name: chat.un, id: id, tags: commatag\}));\par
+                                \} else \{\par
+                                    API.sendChat(subChat(basicBot.chat.invalidgiftags, \{name: chat.un, tags: commatag\}));\par
+                                \}\par
+                            \});\par
+                        \}\par
+                        else \{\par
+                            function get_random_id(api_key, func)\par
+                            \{\par
+                                $.getJSON(\par
+                                    "{{\field{\*\fldinst{HYPERLINK https://api.giphy.com/v1/gifs/random? }}{\fldrslt{https://api.giphy.com/v1/gifs/random?\ul0\cf0}}}}\f2\fs22 ", \par
+                                    \{ \par
+                                        "format": "json",\par
+                                        "api_key": api_key,\par
+                                        "rating": rating\par
+                                    \},\par
+                                    function(response)\par
+                                    \{\par
+                                        func(response.data.id);\par
+                                    \}\par
+                                    )\par
+                            \}\par
+                            var api_key = "dc6zaTOxFJmzC"; // public beta key\par
+                            var rating = "pg-13"; // PG 13 gifs\par
+                            get_random_id(api_key, function(id) \{\par
+                                if (typeof id !== 'undefined') \{\par
+                                    API.sendChat(subChat(basicBot.chat.validgifrandom, \{name: chat.un, id: id\}));\par
+                                \} else \{\par
+                                    API.sendChat(subChat(basicBot.chat.invalidgifrandom, \{name: chat.un\}));\par
+                                \}\par
+                            \});\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            helpCommand: \{\par
+                command: 'help',\par
+                rank: 'user',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var link = "({{\field{\*\fldinst{HYPERLINK https://gyazo.com/3979e79e87d8cdfce65a067d270e905a }}{\fldrslt{https://gyazo.com/3979e79e87d8cdfce65a067d270e905a\ul0\cf0}}}}\f2\fs22 )";\par
+                        API.sendChat(subChat(basicBot.chat.starterhelp, \{link: link\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            historyskipCommand: \{\par
+                command: 'historyskip',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.historySkip) \{\par
+                            basicBot.settings.historySkip = !basicBot.settings.historySkip;\par
+                            API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.historyskip\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.historySkip = !basicBot.settings.historySkip;\par
+                            API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.historyskip\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            joinCommand: \{\par
+                command: 'join',\par
+                rank: 'user',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.room.roulette.rouletteStatus && basicBot.room.roulette.participants.indexOf(chat.uid) < 0) \{\par
+                            basicBot.room.roulette.participants.push(chat.uid);\par
+                            API.sendChat(subChat(basicBot.chat.roulettejoin, \{name: chat.un\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            jointimeCommand: \{\par
+                command: 'jointime',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length === cmd.length) return API.sendChat(subChat(basicBot.chat.nouserspecified, \{name: chat.un\}));\par
+                        var name = msg.substring(cmd.length + 2);\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        if (typeof user === 'boolean') return API.sendChat(subChat(basicBot.chat.invaliduserspecified, \{name: chat.un\}));\par
+                        var join = basicBot.userUtilities.getJointime(user);\par
+                        var time = Date.now() - join;\par
+                        var timeString = basicBot.roomUtilities.msToStr(time);\par
+                        API.sendChat(subChat(basicBot.chat.jointime, \{namefrom: chat.un, username: name, time: timeString\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            kickCommand: \{\par
+                command: 'kick',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        var lastSpace = msg.lastIndexOf(' ');\par
+                        var time;\par
+                        var name;\par
+                        if (lastSpace === msg.indexOf(' ')) \{\par
+                            time = 0.25;\par
+                            name = msg.substring(cmd.length + 2);\par
+                        \}\par
+                        else \{\par
+                            time = msg.substring(lastSpace + 1);\par
+                            name = msg.substring(cmd.length + 2, lastSpace);\par
+                        \}\par
+\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        var from = chat.un;\par
+                        if (typeof user === 'boolean') return API.sendChat(subChat(basicBot.chat.nouserspecified, \{name: chat.un\}));\par
+\par
+                        var permFrom = basicBot.userUtilities.getPermission(chat.uid);\par
+                        var permTokick = basicBot.userUtilities.getPermission(user.id);\par
+\par
+                        if (permFrom <= permTokick)\par
+                            return API.sendChat(subChat(basicBot.chat.kickrank, \{name: chat.un\}));\par
+\par
+                        if (!isNaN(time)) \{\par
+                            API.sendChat(subChat(basicBot.chat.kick, \{name: chat.un, username: name, time: time\}));\par
+                            if (time > 24 * 60 * 60) API.moderateBanUser(user.id, 1, API.BAN.PERMA);\par
+                            else API.moderateBanUser(user.id, 1, API.BAN.DAY);\par
+                            setTimeout(function (id, name) \{\par
+                                API.moderateUnbanUser(id);\par
+                                console.log('Unbanned @' + name + '. (' + id + ')');\par
+                            \}, time * 60 * 1000, user.id, name);\par
+                        \}\par
+                        else API.sendChat(subChat(basicBot.chat.invalidtime, \{name: chat.un\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            killCommand: \{\par
+                command: 'kill',\par
+                rank: 'host',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        storeToStorage();\par
+                        API.sendChat(basicBot.chat.kill);\par
+                        basicBot.disconnectAPI();\par
+                        setTimeout(function () \{\par
+                            kill();\par
+                        \}, 1000);\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            languageCommand: \{\par
+                command: 'language',\par
+                rank: 'host',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length <= cmd.length + 1) return API.sendChat(subChat(basicBot.chat.currentlang, \{language: basicBot.settings.language\}));\par
+                        var argument = msg.substring(cmd.length + 1);\par
+\par
+                        $.get("https://rawgit.com/Yemasthui/basicBot/master/lang/langIndex.json", function (json) \{\par
+                            var langIndex = json;\par
+                            var link = langIndex[argument.toLowerCase()];\par
+                            if (typeof link === "undefined") \{\par
+                                API.sendChat(subChat(basicBot.chat.langerror, \{link: "{{\field{\*\fldinst{HYPERLINK http://git.io/vJ9nI }}{\fldrslt{http://git.io/vJ9nI\ul0\cf0}}}}\f2\fs22 "\}));\par
+                            \}\par
+                            else \{\par
+                                basicBot.settings.language = argument;\par
+                                loadChat();\par
+                                API.sendChat(subChat(basicBot.chat.langset, \{language: basicBot.settings.language\}));\par
+                            \}\par
+                        \});\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            leaveCommand: \{\par
+                command: 'leave',\par
+                rank: 'user',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var ind = basicBot.room.roulette.participants.indexOf(chat.uid);\par
+                        if (ind > -1) \{\par
+                            basicBot.room.roulette.participants.splice(ind, 1);\par
+                            API.sendChat(subChat(basicBot.chat.rouletteleave, \{name: chat.un\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            linkCommand: \{\par
+                command: 'link',\par
+                rank: 'user',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var media = API.getMedia();\par
+                        var from = chat.un;\par
+                        var user = basicBot.userUtilities.lookupUser(chat.uid);\par
+                        var perm = basicBot.userUtilities.getPermission(chat.uid);\par
+                        var dj = API.getDJ().id;\par
+                        var isDj = false;\par
+                        if (dj === chat.uid) isDj = true;\par
+                        if (perm >= 1 || isDj) \{\par
+                            if (media.format === 1) \{\par
+                                var linkToSong = "{{\field{\*\fldinst{HYPERLINK http://youtu.be/ }}{\fldrslt{http://youtu.be/\ul0\cf0}}}}\f2\fs22 " + media.cid;\par
+                                API.sendChat(subChat(basicBot.chat.songlink, \{name: from, link: linkToSong\}));\par
+                            \}\par
+                            if (media.format === 2) \{\par
+                                SC.get('/tracks/' + media.cid, function (sound) \{\par
+                                    API.sendChat(subChat(basicBot.chat.songlink, \{name: from, link: sound.permalink_url\}));\par
+                                \});\par
+                            \}\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            lockCommand: \{\par
+                command: 'lock',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        basicBot.roomUtilities.booth.lockBooth();\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            lockdownCommand: \{\par
+                command: 'lockdown',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var temp = basicBot.settings.lockdownEnabled;\par
+                        basicBot.settings.lockdownEnabled = !temp;\par
+                        if (basicBot.settings.lockdownEnabled) \{\par
+                            return API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.lockdown\}));\par
+                        \}\par
+                        else return API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.lockdown\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            lockguardCommand: \{\par
+                command: 'lockguard',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.lockGuard) \{\par
+                            basicBot.settings.lockGuard = !basicBot.settings.lockGuard;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.lockguard\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.lockGuard = !basicBot.settings.lockGuard;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.lockguard\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            lockskipCommand: \{\par
+                command: 'lockskip',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.room.skippable) \{\par
+                            var dj = API.getDJ();\par
+                            var id = dj.id;\par
+                            var name = dj.username;\par
+                            var msgSend = '@' + name + ': ';\par
+                            basicBot.room.queueable = false;\par
+\par
+                            if (chat.message.length === cmd.length) \{\par
+                                API.sendChat(subChat(basicBot.chat.usedlockskip, \{name: chat.un\}));\par
+                                basicBot.roomUtilities.booth.lockBooth();\par
+                                setTimeout(function (id) \{\par
+                                    API.moderateForceSkip();\par
+                                    basicBot.room.skippable = false;\par
+                                    setTimeout(function () \{\par
+                                        basicBot.room.skippable = true\par
+                                    \}, 5 * 1000);\par
+                                    setTimeout(function (id) \{\par
+                                        basicBot.userUtilities.moveUser(id, basicBot.settings.lockskipPosition, false);\par
+                                        basicBot.room.queueable = true;\par
+                                        setTimeout(function () \{\par
+                                            basicBot.roomUtilities.booth.unlockBooth();\par
+                                        \}, 1000);\par
+                                    \}, 1500, id);\par
+                                \}, 1000, id);\par
+                                return void (0);\par
+                            \}\par
+                            var validReason = false;\par
+                            var msg = chat.message;\par
+                            var reason = msg.substring(cmd.length + 1);\par
+                            for (var i = 0; i < basicBot.settings.lockskipReasons.length; i++) \{\par
+                                var r = basicBot.settings.lockskipReasons[i][0];\par
+                                if (reason.indexOf(r) !== -1) \{\par
+                                    validReason = true;\par
+                                    msgSend += basicBot.settings.lockskipReasons[i][1];\par
+                                \}\par
+                            \}\par
+                            if (validReason) \{\par
+                                API.sendChat(subChat(basicBot.chat.usedlockskip, \{name: chat.un\}));\par
+                                basicBot.roomUtilities.booth.lockBooth();\par
+                                setTimeout(function (id) \{\par
+                                    API.moderateForceSkip();\par
+                                    basicBot.room.skippable = false;\par
+                                    API.sendChat(msgSend);\par
+                                    setTimeout(function () \{\par
+                                        basicBot.room.skippable = true\par
+                                    \}, 5 * 1000);\par
+                                    setTimeout(function (id) \{\par
+                                        basicBot.userUtilities.moveUser(id, basicBot.settings.lockskipPosition, false);\par
+                                        basicBot.room.queueable = true;\par
+                                        setTimeout(function () \{\par
+                                            basicBot.roomUtilities.booth.unlockBooth();\par
+                                        \}, 1000);\par
+                                    \}, 1500, id);\par
+                                \}, 1000, id);\par
+                                return void (0);\par
+                            \}\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            lockskipposCommand: \{\par
+                command: 'lockskippos',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        var pos = msg.substring(cmd.length + 1);\par
+                        if (!isNaN(pos)) \{\par
+                            basicBot.settings.lockskipPosition = pos;\par
+                            return API.sendChat(subChat(basicBot.chat.lockskippos, \{name: chat.un, position: basicBot.settings.lockskipPosition\}));\par
+                        \}\par
+                        else return API.sendChat(subChat(basicBot.chat.invalidpositionspecified, \{name: chat.un\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            locktimerCommand: \{\par
+                command: 'locktimer',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        var lockTime = msg.substring(cmd.length + 1);\par
+                        if (!isNaN(lockTime) && lockTime !== "") \{\par
+                            basicBot.settings.maximumLocktime = lockTime;\par
+                            return API.sendChat(subChat(basicBot.chat.lockguardtime, \{name: chat.un, time: basicBot.settings.maximumLocktime\}));\par
+                        \}\par
+                        else return API.sendChat(subChat(basicBot.chat.invalidtime, \{name: chat.un\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            logoutCommand: \{\par
+                command: 'logout',\par
+                rank: 'host',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        API.sendChat(subChat(basicBot.chat.logout, \{name: chat.un, botname: basicBot.settings.botName\}));\par
+                        setTimeout(function () \{\par
+                            $(".logout").mousedown()\par
+                        \}, 1000);\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            maxlengthCommand: \{\par
+                command: 'maxlength',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        var maxTime = msg.substring(cmd.length + 1);\par
+                        if (!isNaN(maxTime)) \{\par
+                            basicBot.settings.maximumSongLength = maxTime;\par
+                            return API.sendChat(subChat(basicBot.chat.maxlengthtime, \{name: chat.un, time: basicBot.settings.maximumSongLength\}));\par
+                        \}\par
+                        else return API.sendChat(subChat(basicBot.chat.invalidtime, \{name: chat.un\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            motdCommand: \{\par
+                command: 'motd',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length <= cmd.length + 1) return API.sendChat('/me MotD: ' + basicBot.settings.motd);\par
+                        var argument = msg.substring(cmd.length + 1);\par
+                        if (!basicBot.settings.motdEnabled) basicBot.settings.motdEnabled = !basicBot.settings.motdEnabled;\par
+                        if (isNaN(argument)) \{\par
+                            basicBot.settings.motd = argument;\par
+                            API.sendChat(subChat(basicBot.chat.motdset, \{msg: basicBot.settings.motd\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.motdInterval = argument;\par
+                            API.sendChat(subChat(basicBot.chat.motdintervalset, \{interval: basicBot.settings.motdInterval\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            moveCommand: \{\par
+                command: 'move',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length === cmd.length) return API.sendChat(subChat(basicBot.chat.nouserspecified, \{name: chat.un\}));\par
+                        var firstSpace = msg.indexOf(' ');\par
+                        var lastSpace = msg.lastIndexOf(' ');\par
+                        var pos;\par
+                        var name;\par
+                        if (isNaN(parseInt(msg.substring(lastSpace + 1)))) \{\par
+                            pos = 1;\par
+                            name = msg.substring(cmd.length + 2);\par
+                        \}\par
+                        else \{\par
+                            pos = parseInt(msg.substring(lastSpace + 1));\par
+                            name = msg.substring(cmd.length + 2, lastSpace);\par
+                        \}\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        if (typeof user === 'boolean') return API.sendChat(subChat(basicBot.chat.invaliduserspecified, \{name: chat.un\}));\par
+                        if (user.id === basicBot.loggedInID) return API.sendChat(subChat(basicBot.chat.addbotwaitlist, \{name: chat.un\}));\par
+                        if (!isNaN(pos)) \{\par
+                            API.sendChat(subChat(basicBot.chat.move, \{name: chat.un\}));\par
+                            basicBot.userUtilities.moveUser(user.id, pos, false);\par
+                        \} else return API.sendChat(subChat(basicBot.chat.invalidpositionspecified, \{name: chat.un\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            muteCommand: \{\par
+                command: 'mute',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length === cmd.length) return API.sendChat(subChat(basicBot.chat.nouserspecified, \{name: chat.un\}));\par
+                        var lastSpace = msg.lastIndexOf(' ');\par
+                        var time = null;\par
+                        var name;\par
+                        if (lastSpace === msg.indexOf(' ')) \{\par
+                            name = msg.substring(cmd.length + 2);\par
+                            time = 45;\par
+                        \}\par
+                        else \{\par
+                            time = msg.substring(lastSpace + 1);\par
+                            if (isNaN(time) || time == "" || time == null || typeof time == "undefined") \{\par
+                                return API.sendChat(subChat(basicBot.chat.invalidtime, \{name: chat.un\}));\par
+                            \}\par
+                            name = msg.substring(cmd.length + 2, lastSpace);\par
+                        \}\par
+                        var from = chat.un;\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        if (typeof user === 'boolean') return API.sendChat(subChat(basicBot.chat.invaliduserspecified, \{name: chat.un\}));\par
+                        var permFrom = basicBot.userUtilities.getPermission(chat.uid);\par
+                        var permUser = basicBot.userUtilities.getPermission(user.id);\par
+                        if (permFrom > permUser) \{\par
+                            /*\par
+                             basicBot.room.mutedUsers.push(user.id);\par
+                             if (time === null) API.sendChat(subChat(basicBot.chat.mutednotime, \{name: chat.un, username: name\}));\par
+                             else \{\par
+                             API.sendChat(subChat(basicBot.chat.mutedtime, \{name: chat.un, username: name, time: time\}));\par
+                             setTimeout(function (id) \{\par
+                             var muted = basicBot.room.mutedUsers;\par
+                             var wasMuted = false;\par
+                             var indexMuted = -1;\par
+                             for (var i = 0; i < muted.length; i++) \{\par
+                             if (muted[i] === id) \{\par
+                             indexMuted = i;\par
+                             wasMuted = true;\par
+                             \}\par
+                             \}\par
+                             if (indexMuted > -1) \{\par
+                             basicBot.room.mutedUsers.splice(indexMuted);\par
+                             var u = basicBot.userUtilities.lookupUser(id);\par
+                             var name = u.username;\par
+                             API.sendChat(subChat(basicBot.chat.unmuted, \{name: chat.un, username: name\}));\par
+                             \}\par
+                             \}, time * 60 * 1000, user.id);\par
+                             \}\par
+                             */\par
+                            if (time > 45) \{\par
+                                API.sendChat(subChat(basicBot.chat.mutedmaxtime, \{name: chat.un, time: "45"\}));\par
+                                API.moderateMuteUser(user.id, 1, API.MUTE.LONG);\par
+                            \}\par
+                            else if (time === 45) \{\par
+                                API.moderateMuteUser(user.id, 1, API.MUTE.LONG);\par
+                                API.sendChat(subChat(basicBot.chat.mutedtime, \{name: chat.un, username: name, time: time\}));\par
+\par
+                            \}\par
+                            else if (time > 30) \{\par
+                                API.moderateMuteUser(user.id, 1, API.MUTE.LONG);\par
+                                API.sendChat(subChat(basicBot.chat.mutedtime, \{name: chat.un, username: name, time: time\}));\par
+                                setTimeout(function (id) \{\par
+                                    API.moderateUnmuteUser(id);\par
+                                \}, time * 60 * 1000, user.id);\par
+                            \}\par
+                            else if (time > 15) \{\par
+                                API.moderateMuteUser(user.id, 1, API.MUTE.MEDIUM);\par
+                                API.sendChat(subChat(basicBot.chat.mutedtime, \{name: chat.un, username: name, time: time\}));\par
+                                setTimeout(function (id) \{\par
+                                    API.moderateUnmuteUser(id);\par
+                                \}, time * 60 * 1000, user.id);\par
+                            \}\par
+                            else \{\par
+                                API.moderateMuteUser(user.id, 1, API.MUTE.SHORT);\par
+                                API.sendChat(subChat(basicBot.chat.mutedtime, \{name: chat.un, username: name, time: time\}));\par
+                                setTimeout(function (id) \{\par
+                                    API.moderateUnmuteUser(id);\par
+                                \}, time * 60 * 1000, user.id);\par
+                            \}\par
+                        \}\par
+                        else API.sendChat(subChat(basicBot.chat.muterank, \{name: chat.un\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            opCommand: \{\par
+                command: 'op',\par
+                rank: 'user',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (typeof basicBot.settings.opLink === "string")\par
+                            return API.sendChat(subChat(basicBot.chat.oplist, \{link: basicBot.settings.opLink\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            pingCommand: \{\par
+                command: 'ping',\par
+                rank: 'user',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        API.sendChat(basicBot.chat.pong)\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            refreshCommand: \{\par
+                command: 'refresh',\par
+                rank: 'host',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        storeToStorage();\par
+                        basicBot.disconnectAPI();\par
+                        setTimeout(function () \{\par
+                            window.location.reload(false);\par
+                        \}, 1000);\par
+\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            reloadCommand: \{\par
+                command: 'reload',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        API.sendChat(basicBot.chat.reload);\par
+                        storeToStorage();\par
+                        basicBot.disconnectAPI();\par
+                        kill();\par
+                        setTimeout(function () \{\par
+                            $.getScript(basicBot.scriptLink);\par
+                        \}, 2000);\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            removeCommand: \{\par
+                command: 'remove',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length > cmd.length + 2) \{\par
+                            var name = msg.substr(cmd.length + 2);\par
+                            var user = basicBot.userUtilities.lookupUserName(name);\par
+                            if (typeof user !== 'boolean') \{\par
+                                user.lastDC = \{\par
+                                    time: null,\par
+                                    position: null,\par
+                                    songCount: 0\par
+                                \};\par
+                                if (API.getDJ().id === user.id) \{\par
+                                    API.moderateForceSkip();\par
+                                    setTimeout(function () \{\par
+                                        API.moderateRemoveDJ(user.id);\par
+                                    \}, 1 * 1000, user);\par
+                                \}\par
+                                else API.moderateRemoveDJ(user.id);\par
+                            \} else API.sendChat(subChat(basicBot.chat.removenotinwl, \{name: chat.un, username: name\}));\par
+                        \} else API.sendChat(subChat(basicBot.chat.nouserspecified, \{name: chat.un\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            restrictetaCommand: \{\par
+                command: 'restricteta',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.etaRestriction) \{\par
+                            basicBot.settings.etaRestriction = !basicBot.settings.etaRestriction;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.etarestriction\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.etaRestriction = !basicBot.settings.etaRestriction;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.etarestriction\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            rouletteCommand: \{\par
+                command: 'roulette',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (!basicBot.room.roulette.rouletteStatus) \{\par
+                            basicBot.room.roulette.startRoulette();\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            rulesCommand: \{\par
+                command: 'rules',\par
+                rank: 'user',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (typeof basicBot.settings.rulesLink === "string")\par
+                            return API.sendChat(subChat(basicBot.chat.roomrules, \{link: basicBot.settings.rulesLink\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            sessionstatsCommand: \{\par
+                command: 'sessionstats',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var from = chat.un;\par
+                        var woots = basicBot.room.roomstats.totalWoots;\par
+                        var mehs = basicBot.room.roomstats.totalMehs;\par
+                        var grabs = basicBot.room.roomstats.totalCurates;\par
+                        API.sendChat(subChat(basicBot.chat.sessionstats, \{name: from, woots: woots, mehs: mehs, grabs: grabs\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            skipCommand: \{\par
+                command: 'skip',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        API.sendChat(subChat(basicBot.chat.skip, \{name: chat.un\}));\par
+                        API.moderateForceSkip();\par
+                        basicBot.room.skippable = false;\par
+                        setTimeout(function () \{\par
+                            basicBot.room.skippable = true\par
+                        \}, 5 * 1000);\par
+\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            songstatsCommand: \{\par
+                command: 'songstats',\par
+                rank: 'host',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.songstats) \{\par
+                            basicBot.settings.songstats = !basicBot.settings.songstats;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.songstats\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.songstats = !basicBot.settings.songstats;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.songstats\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            sourceCommand: \{\par
+                command: 'source',\par
+                rank: 'user',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        API.sendChat('/me This bot was created by ' + BotCreator + ', but is now maintained by ' + botMaintainer + ".");\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            statusCommand: \{\par
+                command: 'status',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var from = chat.un;\par
+                        var msg = '/me [@' + from + '] ';\par
+\par
+                        msg += basicBot.chat.afkremoval + ': ';\par
+                        if (basicBot.settings.afkRemoval) msg += 'ON';\par
+                        else msg += 'OFF';\par
+                        msg += '. ';\par
+                        msg += basicBot.chat.afksremoved + ": " + basicBot.room.afkList.length + '. ';\par
+                        msg += basicBot.chat.afklimit + ': ' + basicBot.settings.maximumAfk + '. ';\par
+\par
+                        msg += 'Bouncer+: ';\par
+                        if (basicBot.settings.bouncerPlus) msg += 'ON';\par
+                        else msg += 'OFF';\par
+                        msg += '. ';\par
+\tab\tab\tab\tab\tab\tab\tab\tab\tab\tab\tab\tab\par
+                        msg += basicBot.chat.blacklist + ': ';\par
+                        if (basicBot.settings.blacklistEnabled) msg += 'ON';\par
+                        else msg += 'OFF';\par
+                        msg += '. ';\par
+\par
+                        msg += basicBot.chat.lockguard + ': ';\par
+                        if (basicBot.settings.lockGuard) msg += 'ON';\par
+                        else msg += 'OFF';\par
+                        msg += '. ';\par
+\par
+                        msg += basicBot.chat.cycleguard + ': ';\par
+                        if (basicBot.settings.cycleGuard) msg += 'ON';\par
+                        else msg += 'OFF';\par
+                        msg += '. ';\par
+\par
+                        msg += basicBot.chat.timeguard + ': ';\par
+                        if (basicBot.settings.timeGuard) msg += 'ON';\par
+                        else msg += 'OFF';\par
+                        msg += '. ';\par
+\par
+                        msg += basicBot.chat.chatfilter + ': ';\par
+                        if (basicBot.settings.filterChat) msg += 'ON';\par
+                        else msg += 'OFF';\par
+                        msg += '. ';\par
+\par
+                        msg += basicBot.chat.historyskip + ': ';\par
+                        if (basicBot.settings.historySkip) msg += 'ON';\par
+                        else msg += 'OFF';\par
+                        msg += '. ';\par
+\par
+                        msg += basicBot.chat.voteskip + ': ';\par
+                        if (basicBot.settings.voteSkip) msg += 'ON';\par
+                        else msg += 'OFF';\par
+                        msg += '. ';\par
+\par
+                        msg += basicBot.chat.cmddeletion + ': ';\par
+                        if (basicBot.settings.cmdDeletion) msg += 'ON';\par
+                        else msg += 'OFF';\par
+                        msg += '. ';\par
+\par
+                        var launchT = basicBot.room.roomstats.launchTime;\par
+                        var durationOnline = Date.now() - launchT;\par
+                        var since = basicBot.roomUtilities.msToStr(durationOnline);\par
+                        msg += subChat(basicBot.chat.activefor, \{time: since\});\par
+\par
+                        return API.sendChat(msg);\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            swapCommand: \{\par
+                command: 'swap',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length === cmd.length) return API.sendChat(subChat(basicBot.chat.nouserspecified, \{name: chat.un\}));\par
+                        var firstSpace = msg.indexOf(' ');\par
+                        var lastSpace = msg.lastIndexOf(' ');\par
+                        var name1 = msg.substring(cmd.length + 2, lastSpace);\par
+                        var name2 = msg.substring(lastSpace + 2);\par
+                        var user1 = basicBot.userUtilities.lookupUserName(name1);\par
+                        var user2 = basicBot.userUtilities.lookupUserName(name2);\par
+                        if (typeof user1 === 'boolean' || typeof user2 === 'boolean') return API.sendChat(subChat(basicBot.chat.swapinvalid, \{name: chat.un\}));\par
+                        if (user1.id === basicBot.loggedInID || user2.id === basicBot.loggedInID) return API.sendChat(subChat(basicBot.chat.addbottowaitlist, \{name: chat.un\}));\par
+                        var p1 = API.getWaitListPosition(user1.id) + 1;\par
+                        var p2 = API.getWaitListPosition(user2.id) + 1;\par
+                        if (p1 < 0 || p2 < 0) return API.sendChat(subChat(basicBot.chat.swapwlonly, \{name: chat.un\}));\par
+                        API.sendChat(subChat(basicBot.chat.swapping, \{'name1': name1, 'name2': name2\}));\par
+                        if (p1 < p2) \{\par
+                            basicBot.userUtilities.moveUser(user2.id, p1, false);\par
+                            setTimeout(function (user1, p2) \{\par
+                                basicBot.userUtilities.moveUser(user1.id, p2, false);\par
+                            \}, 2000, user1, p2);\par
+                        \}\par
+                        else \{\par
+                            basicBot.userUtilities.moveUser(user1.id, p2, false);\par
+                            setTimeout(function (user2, p1) \{\par
+                                basicBot.userUtilities.moveUser(user2.id, p1, false);\par
+                            \}, 2000, user2, p1);\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            themeCommand: \{\par
+                command: 'theme',\par
+                rank: 'user',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (typeof basicBot.settings.themeLink === "string")\par
+                            API.sendChat(subChat(basicBot.chat.genres, \{link: basicBot.settings.themeLink\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            timeguardCommand: \{\par
+                command: 'timeguard',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.timeGuard) \{\par
+                            basicBot.settings.timeGuard = !basicBot.settings.timeGuard;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.timeguard\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.timeGuard = !basicBot.settings.timeGuard;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.timeguard\}));\par
+                        \}\par
+\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            toggleblCommand: \{\par
+                command: 'togglebl',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var temp = basicBot.settings.blacklistEnabled;\par
+                        basicBot.settings.blacklistEnabled = !temp;\par
+                        if (basicBot.settings.blacklistEnabled) \{\par
+                          return API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.blacklist\}));\par
+                        \}\par
+                        else return API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.blacklist\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\tab\tab\tab\tab\tab\tab\par
+            togglemotdCommand: \{\par
+                command: 'togglemotd',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.motdEnabled) \{\par
+                            basicBot.settings.motdEnabled = !basicBot.settings.motdEnabled;\par
+                            API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.motd\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.motdEnabled = !basicBot.settings.motdEnabled;\par
+                            API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.motd\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            togglevoteskipCommand: \{\par
+                command: 'togglevoteskip',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.voteSkip) \{\par
+                            basicBot.settings.voteSkip = !basicBot.settings.voteSkip;\par
+                            API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.voteskip\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.voteSkip = !basicBot.settings.voteSkip;\par
+                            API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.voteskip\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            unbanCommand: \{\par
+                command: 'unban',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        $(".icon-population").click();\par
+                        $(".icon-ban").click();\par
+                        setTimeout(function (chat) \{\par
+                            var msg = chat.message;\par
+                            if (msg.length === cmd.length) return API.sendChat();\par
+                            var name = msg.substring(cmd.length + 2);\par
+                            var bannedUsers = API.getBannedUsers();\par
+                            var found = false;\par
+                            var bannedUser = null;\par
+                            for (var i = 0; i < bannedUsers.length; i++) \{\par
+                                var user = bannedUsers[i];\par
+                                if (user.username === name) \{\par
+                                    bannedUser = user;\par
+                                    found = true;\par
+                                \}\par
+                            \}\par
+                            if (!found) \{\par
+                                $(".icon-chat").click();\par
+                                return API.sendChat(subChat(basicBot.chat.notbanned, \{name: chat.un\}));\par
+                            \}\par
+                            API.moderateUnbanUser(bannedUser.id);\par
+                            console.log("Unbanned " + name);\par
+                            setTimeout(function () \{\par
+                                $(".icon-chat").click();\par
+                            \}, 1000);\par
+                        \}, 1000, chat);\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            unlockCommand: \{\par
+                command: 'unlock',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        basicBot.roomUtilities.booth.unlockBooth();\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            unmuteCommand: \{\par
+                command: 'unmute',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        var permFrom = basicBot.userUtilities.getPermission(chat.uid);\par
+                        /**\par
+                         if (msg.indexOf('@') === -1 && msg.indexOf('all') !== -1) \{\par
+                            if (permFrom > 2) \{\par
+                                basicBot.room.mutedUsers = [];\par
+                                return API.sendChat(subChat(basicBot.chat.unmutedeveryone, \{name: chat.un\}));\par
+                            \}\par
+                            else return API.sendChat(subChat(basicBot.chat.unmuteeveryonerank, \{name: chat.un\}));\par
+                        \}\par
+                         **/\par
+                        var from = chat.un;\par
+                        var name = msg.substr(cmd.length + 2);\par
+\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+\par
+                        if (typeof user === 'boolean') return API.sendChat(subChat(basicBot.chat.invaliduserspecified, \{name: chat.un\}));\par
+\par
+                        var permUser = basicBot.userUtilities.getPermission(user.id);\par
+                        if (permFrom > permUser) \{\par
+                            /*\par
+                             var muted = basicBot.room.mutedUsers;\par
+                             var wasMuted = false;\par
+                             var indexMuted = -1;\par
+                             for (var i = 0; i < muted.length; i++) \{\par
+                             if (muted[i] === user.id) \{\par
+                             indexMuted = i;\par
+                             wasMuted = true;\par
+                             \}\par
+\par
+                             \}\par
+                             if (!wasMuted) return API.sendChat(subChat(basicBot.chat.notmuted, \{name: chat.un\}));\par
+                             basicBot.room.mutedUsers.splice(indexMuted);\par
+                             API.sendChat(subChat(basicBot.chat.unmuted, \{name: chat.un, username: name\}));\par
+                             */\par
+                            try \{\par
+                                API.moderateUnmuteUser(user.id);\par
+                                API.sendChat(subChat(basicBot.chat.unmuted, \{name: chat.un, username: name\}));\par
+                            \}\par
+                            catch (e) \{\par
+                                API.sendChat(subChat(basicBot.chat.notmuted, \{name: chat.un\}));\par
+                            \}\par
+                        \}\par
+                        else API.sendChat(subChat(basicBot.chat.unmuterank, \{name: chat.un\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            usercmdcdCommand: \{\par
+                command: 'usercmdcd',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        var cd = msg.substring(cmd.length + 1);\par
+                        if (!isNaN(cd)) \{\par
+                            basicBot.settings.commandCooldown = cd;\par
+                            return API.sendChat(subChat(basicBot.chat.commandscd, \{name: chat.un, time: basicBot.settings.commandCooldown\}));\par
+                        \}\par
+                        else return API.sendChat(subChat(basicBot.chat.invalidtime, \{name: chat.un\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            usercommandsCommand: \{\par
+                command: 'usercommands',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.usercommandsEnabled) \{\par
+                            API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.usercommands\}));\par
+                            basicBot.settings.usercommandsEnabled = !basicBot.settings.usercommandsEnabled;\par
+                        \}\par
+                        else \{\par
+                            API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.usercommands\}));\par
+                            basicBot.settings.usercommandsEnabled = !basicBot.settings.usercommandsEnabled;\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            voteratioCommand: \{\par
+                command: 'voteratio',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length === cmd.length) return API.sendChat(subChat(basicBot.chat.nouserspecified, \{name: chat.un\}));\par
+                        var name = msg.substring(cmd.length + 2);\par
+                        var user = basicBot.userUtilities.lookupUserName(name);\par
+                        if (user === false) return API.sendChat(subChat(basicBot.chat.invaliduserspecified, \{name: chat.un\}));\par
+                        var vratio = user.votes;\par
+                        var ratio = vratio.woot / vratio.meh;\par
+                        API.sendChat(subChat(basicBot.chat.voteratio, \{name: chat.un, username: name, woot: vratio.woot, mehs: vratio.meh, ratio: ratio.toFixed(2)\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            voteskipCommand: \{\par
+                command: 'voteskip',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        if (msg.length <= cmd.length + 1) return API.sendChat(subChat(basicBot.chat.voteskiplimit, \{name: chat.un, limit: basicBot.settings.voteSkipLimit\}));\par
+                        var argument = msg.substring(cmd.length + 1);\par
+                        if (!basicBot.settings.voteSkip) basicBot.settings.voteSkip = !basicBot.settings.voteSkip;\par
+                        if (isNaN(argument)) \{\par
+                            API.sendChat(subChat(basicBot.chat.voteskipinvalidlimit, \{name: chat.un\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.voteSkipLimit = argument;\par
+                            API.sendChat(subChat(basicBot.chat.voteskipsetlimit, \{name: chat.un, limit: basicBot.settings.voteSkipLimit\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            welcomeCommand: \{\par
+                command: 'welcome',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (basicBot.settings.welcome) \{\par
+                            basicBot.settings.welcome = !basicBot.settings.welcome;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleoff, \{name: chat.un, 'function': basicBot.chat.welcomemsg\}));\par
+                        \}\par
+                        else \{\par
+                            basicBot.settings.welcome = !basicBot.settings.welcome;\par
+                            return API.sendChat(subChat(basicBot.chat.toggleon, \{name: chat.un, 'function': basicBot.chat.welcomemsg\}));\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            websiteCommand: \{\par
+                command: 'website',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (typeof basicBot.settings.website === "string")\par
+                            API.sendChat(subChat(basicBot.chat.website, \{link: basicBot.settings.website\}));\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            whoisCommand: \{\par
+                command: 'whois',\par
+                rank: 'bouncer',\par
+                type: 'startsWith',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        var msg = chat.message;\par
+                        var name;\par
+                        if (msg.length === cmd.length) name = chat.un;\par
+                        else \{\par
+                            name = msg.substr(cmd.length + 2);\par
+                        \}\par
+                        users = API.getUsers();\par
+                        var len = users.length;\par
+                        for (var i = 0; i < len; ++i)\{\par
+                            if (users[i].username == name)\{\par
+                                var id = users[i].id;\par
+                                var avatar = API.getUser(id).avatarID;\par
+                                var level = API.getUser(id).level;\par
+                                var rawjoined = API.getUser(id).joined;\par
+                                var joined = rawjoined.substr(0, 10);\par
+                                var rawlang = API.getUser(id).language;\par
+                                if (rawlang == "en")\{\par
+                                    var language = "English";\par
+                                \} else if (rawlang == "bg")\{\par
+                                    var language = "Bulgarian";\par
+                                \} else if (rawlang == "cs")\{\par
+                                    var language = "Czech";\par
+                                \} else if (rawlang == "fi")\{\par
+                                    var language = "Finnish"\par
+                                \} else if (rawlang == "fr")\{\par
+                                    var language = "French"\par
+                                \} else if (rawlang == "pt")\{\par
+                                    var language = "Portuguese"\par
+                                \} else if (rawlang == "zh")\{\par
+                                    var language = "Chinese"\par
+                                \} else if (rawlang == "sk")\{\par
+                                    var language = "Slovak"\par
+                                \} else if (rawlang == "nl")\{\par
+                                    var language = "Dutch"\par
+                                \} else if (rawlang == "ms")\{\par
+                                    var language = "Malay"\par
+                                \}\par
+                                var rawstatus = API.getUser(id).status;\par
+                                if (rawstatus == "0")\{\par
+                                    var status = "Available";\par
+                                \} else if (rawstatus == "1")\{\par
+                                    var status = "Away";\par
+                                \} else if (rawstatus == "2")\{\par
+                                    var status = "Working";\par
+                                \} else if (rawstatus == "3")\{\par
+                                    var status = "Gaming"\par
+                                \}\par
+                                var rawrank = API.getUser(id).role;\par
+                                if (rawrank == "0")\{\par
+                                    var rank = "User";\par
+                                \} else if (rawrank == "1")\{\par
+                                    var rank = "Resident DJ";\par
+                                \} else if (rawrank == "2")\{\par
+                                    var rank = "Bouncer";\par
+                                \} else if (rawrank == "3")\{\par
+                                    var rank = "Manager"\par
+                                \} else if (rawrank == "4")\{\par
+                                    var rank = "Co-Host"\par
+                                \} else if (rawrank == "5")\{\par
+                                    var rank = "Host"\par
+                                \} else if (rawrank == "7")\{\par
+                                    var rank = "Brand Ambassador"\par
+                                \} else if (rawrank == "10")\{\par
+                                    var rank = "Admin"\par
+                                \}\par
+                                var slug = API.getUser(id).slug;\par
+                                if (typeof slug !== 'undefined') \{\par
+                                    var profile = ", Profile: {{\field{\*\fldinst{HYPERLINK http://plug.dj/@/ }}{\fldrslt{http://plug.dj/@/\ul0\cf0}}}}\f2\fs22 " + slug;\par
+                                \} else \{\par
+                                    var profile = "";\par
+                                \}\par
+\par
+                                API.sendChat(subChat(basicBot.chat.whois, \{name1: chat.un, name2: name, id: id, avatar: avatar, profile: profile, language: language, level: level, status: status, joined: joined, rank: rank\}));\par
+                            \}\par
+                        \}\par
+                    \}\par
+                \}\par
+            \},\par
+\par
+            youtubeCommand: \{\par
+                command: 'youtube',\par
+                rank: 'bouncer',\par
+                type: 'exact',\par
+                functionality: function (chat, cmd) \{\par
+                    if (this.type === 'exact' && chat.message.length !== cmd.length) return void (0);\par
+                    if (!basicBot.commands.executable(this.rank, chat)) return void (0);\par
+                    else \{\par
+                        if (typeof basicBot.settings.youtubeLink === "string")\par
+                            API.sendChat(subChat(basicBot.chat.youtube, \{name: chat.un, link: basicBot.settings.youtubeLink\}));\par
+                    \}\par
+                \}\par
+            \}\par
+        \}\par
+    \};\par
+\par
+    loadChat(basicBot.startup);\par
+\}).call(this);\f0\lang9\par
+}
+ 
